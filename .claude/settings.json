@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://api.gold-api.com/price/XAU/USD)",
+      "Bash(curl -sI -H \"Origin: http://localhost:3000\" https://api.gold-api.com/price/XAU/USD)"
+    ]
+  }
+}

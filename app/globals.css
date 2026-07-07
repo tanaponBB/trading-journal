@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(52, 211, 153, 0.06), transparent 60%),
+    radial-gradient(900px 500px at 0% 110%, rgba(232, 196, 104, 0.04), transparent 60%);
+  min-height: 100vh;
+}
+
+/* thin scrollbars that match the theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1d3527 transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #1d3527; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* remove number input spinners — cleaner for price fields */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+@layer components {
+  .field {
+    @apply w-full rounded-lg border border-hedge bg-ink px-3 py-2 font-mono text-sm text-fog
+      placeholder:text-sage/50 outline-none transition-colors
+      focus:border-leaf focus:ring-1 focus:ring-leaf/40;
+  }
+  .field-label {
+    @apply mb-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-sage;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
