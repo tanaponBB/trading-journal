@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(curl -s https://api.gold-api.com/price/XAU/USD)",
-      "Bash(curl -sI -H \"Origin: http://localhost:3000\" https://api.gold-api.com/price/XAU/USD)"
+      "Bash(curl -sI -H \"Origin: http://localhost:3000\" https://api.gold-api.com/price/XAU/USD)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\('next-auth', require\\('next-auth/package.json'\\).version\\); console.log\\('@anthropic-ai/sdk', require\\('@anthropic-ai/sdk/package.json'\\).version\\)\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next-server\")",
+      "Read(//private/tmp/**)",
+      "Bash(npm uninstall *)"
     ]
   }
 }

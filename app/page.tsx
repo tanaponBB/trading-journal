@@ -6,6 +6,7 @@ import Charts from "@/components/Charts";
 import DayPanel from "@/components/DayPanel";
 import GoldTicker from "@/components/GoldTicker";
 import SettingsModal from "@/components/SettingsModal";
+import SignOutButton from "@/components/SignOutButton";
 import StatsBar from "@/components/StatsBar";
 import TradeModal from "@/components/TradeModal";
 import { computeStats, floatingGoldPnl } from "@/lib/calc";
@@ -72,6 +73,7 @@ export default function Home() {
           >
             + New trade
           </button>
+          <SignOutButton />
         </div>
       </header>
 
