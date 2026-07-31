@@ -8,6 +8,7 @@ import GoldTicker from "@/components/GoldTicker";
 import SettingsModal from "@/components/SettingsModal";
 import SignOutButton from "@/components/SignOutButton";
 import StatsBar from "@/components/StatsBar";
+import SyncButton from "@/components/SyncButton";
 import TradeModal from "@/components/TradeModal";
 import { computeStats, floatingGoldPnl } from "@/lib/calc";
 import { Trade } from "@/lib/types";
@@ -20,7 +21,7 @@ const todayIso = () => {
 };
 
 export default function Home() {
-  const { ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade } = useJournal();
+  const { ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade, sync, syncImported } = useJournal();
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -67,6 +68,7 @@ export default function Home() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <GoldTicker gold={gold} floating={goldFloating} currency={settings.currency} />
+          <SyncButton sync={sync} onSync={syncImported} />
           <button
             onClick={() => { setEditing(undefined); setShowTradeModal(true); }}
             className="rounded-xl bg-leaf px-5 py-2.5 font-display text-sm font-semibold text-ink shadow-glow transition-transform hover:scale-[1.02] active:scale-[0.98]"

@@ -16,6 +16,8 @@ export default auth((req) => {
 });
 
 export const config = {
-  // Run on all paths except Next internals, auth endpoints, and static files.
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  // Run on all paths except Next internals, static files, and /api/* — API routes
+  // authenticate themselves (session cookie or x-api-key) and must answer with
+  // JSON 401s rather than a redirect to the login page.
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };
