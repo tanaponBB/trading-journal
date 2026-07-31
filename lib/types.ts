@@ -1,5 +1,6 @@
 export type Direction = "LONG" | "SHORT";
 export type TradeStatus = "OPEN" | "CLOSED";
+export type TradeSource = "manual" | "xm";
 
 export interface Trade {
   id: string;
@@ -15,6 +16,10 @@ export interface Trade {
   fees?: number;
   status: TradeStatus;
   notes?: string;
+  /** Where the row came from. Absent means it was typed in by hand. */
+  source?: TradeSource;
+  /** Broker deal id — the dedupe key for imports. */
+  externalId?: string;
 }
 
 export interface Settings {
