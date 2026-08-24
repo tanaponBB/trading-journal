@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <style>{`[data-anim]{visibility:visible !important}`}</style>
         </noscript>
       </head>
-      <body className={`${display.variable} ${body.variable} ${mono.variable} bg-base text-chalk font-body antialiased`}>
+      <body className={`${display.variable} ${body.variable} ${mono.variable} bg-canvas text-chalk font-body antialiased`}>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

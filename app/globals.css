@@ -10,7 +10,7 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --c-base:  20 20 20;      /* #141414 page background */
+  --c-canvas: 20 20 20;     /* #141414 page background */
   --c-panel: 26 26 26;      /* #1A1A1A surface */
   --c-raise: 33 33 33;      /* #212121 raised surface */
   --c-line:  44 44 44;      /* #2C2C2C borders */
@@ -36,7 +36,7 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --c-base:  239 237 231;   /* #EFEDE7 off-white page */
+  --c-canvas: 239 237 231;  /* #EFEDE7 off-white page */
   --c-panel: 247 245 240;   /* #F7F5F0 surface */
   --c-raise: 233 230 223;   /* #E9E6DF raised surface */
   --c-line:  218 214 204;   /* #DAD6CC borders */
@@ -102,7 +102,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 @layer components {
   .field {
-    @apply w-full rounded-lg border border-line bg-base px-3 py-2 font-mono text-sm text-chalk
+    @apply w-full rounded-lg border border-line bg-canvas px-3 py-2 font-mono text-sm text-chalk
       placeholder:text-dim outline-none
       focus:border-edge focus:ring-1 focus:ring-chalk/15;
   }
@@ -120,7 +120,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   }
   /* the one filled control — inverts against the page (stays neutral: colour means money) */
   .btn-solid {
-    @apply rounded-lg bg-chalk px-5 py-2.5 font-display text-sm font-semibold text-base
+    @apply rounded-lg bg-chalk px-5 py-2.5 font-display text-sm font-semibold text-canvas
       transition-colors hover:bg-white;
   }
 }

@@ -48,7 +48,7 @@ export default function Modal({ label, onClose, cardClassName = "max-w-lg", chil
   return (
     <div
       ref={backdrop}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-base/85 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/85 p-4 backdrop-blur-sm"
       onClick={close}
     >
       <div

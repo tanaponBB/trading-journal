@@ -62,7 +62,7 @@ export default function Charts({ trades, baseWallet, currency }: Props) {
               key={t}
               onClick={() => setTab(t)}
               className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                tab === t ? "bg-chalk text-base" : "text-ash hover:text-chalk"
+                tab === t ? "bg-chalk text-canvas" : "text-ash hover:text-chalk"
               }`}
             >
               {t === "equity" ? "Equity curve" : "Daily P/L"}

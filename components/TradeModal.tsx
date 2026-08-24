@@ -109,7 +109,7 @@ export default function TradeModal({ date, currency, initial, onSave, onClose }:
                 onClick={() => setDirection(d)}
                 className={`rounded-lg border py-2.5 font-display text-sm font-semibold tracking-wide transition-colors ${
                   direction === d
-                    ? "border-chalk bg-chalk text-base"
+                    ? "border-chalk bg-chalk text-canvas"
                     : "border-line text-ash hover:border-edge hover:text-chalk"
                 }`}
               >
@@ -198,7 +198,7 @@ export default function TradeModal({ date, currency, initial, onSave, onClose }:
                 onChange={e => setFees(e.target.value)} placeholder="0.00" />
             </div>
             <div className="flex flex-col justify-end">
-              <div className="rounded-lg border border-line bg-base px-3 py-2 font-mono text-sm">
+              <div className="rounded-lg border border-line bg-canvas px-3 py-2 font-mono text-sm">
                 <span className="mr-2 text-[10px] uppercase tracking-widest text-ash">Realized</span>
                 {livePnl == null
                   ? <span className="text-dim">—</span>

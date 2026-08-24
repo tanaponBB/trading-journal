@@ -69,7 +69,7 @@ export default function DayPanel({ date, trades, currency, goldPrice, onAdd, onE
                   <div className="flex items-center gap-2.5">
                     <span
                       className={`rounded px-2 py-0.5 font-display text-xs font-bold tracking-wide ${
-                        long ? "bg-chalk text-base" : "border border-edge text-ash"
+                        long ? "bg-chalk text-canvas" : "border border-edge text-ash"
                       }`}
                     >
                       {long ? "▲ LONG" : "▼ SHORT"}

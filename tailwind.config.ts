@@ -22,7 +22,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        base:      c("base"),      // page background
+        canvas:    c("canvas"),    // page background (never name this `base` —
+                                   // it would collide with Tailwind's text-base font size)
         panel:     c("panel"),     // surface
         raise:     c("raise"),     // raised surface
         line:      c("line"),      // borders
