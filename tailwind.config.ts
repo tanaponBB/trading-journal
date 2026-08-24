@@ -1,9 +1,10 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Monochrome design system.
+ * Monochrome shell, two-colour signal.
  * "Black" is a soft dark grey, "white" is a warm off-white — never #000 / #fff.
- * Profit reads bright, loss reads recessed; no hue carries meaning.
+ * Colour is reserved for money: green = profit, red = loss. Nothing else is tinted,
+ * so a hue anywhere on screen always means P/L.
  */
 const config: Config = {
   content: [
@@ -21,8 +22,10 @@ const config: Config = {
         chalk: "#F2F0EA",   // primary text — off-white
         ash:   "#8A8681",   // muted text
         dim:   "#5C5955",   // faintest text
-        up:    "#F5F3EE",   // profit — full brightness
-        down:  "#6E6A65",   // loss — recessed
+        up:      "#3FCF8E", // profit — green
+        "up-lo": "#2A6E51", // profit, recessed (fills, hairlines)
+        down:    "#F0655F", // loss — red
+        "down-lo": "#7A3733", // loss, recessed
       },
       fontFamily: {
         display: ["var(--font-display)", "sans-serif"],

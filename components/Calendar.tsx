@@ -113,8 +113,8 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
           const cell = d != null ? daily.get(iso(year, month, d)) : undefined;
           const pnl = cell?.pnl ?? 0;
           const hasClosed = cell != null && cell.count > cell.open;
-          // Monochrome heat: profit lifts toward off-white, loss sinks toward black.
-          const intensity = hasClosed ? 0.05 + 0.16 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
+          // Colour heat: greener the bigger the win, redder the bigger the loss.
+          const intensity = hasClosed ? 0.07 + 0.21 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
           const isToday = d != null && iso(year, month, d) === todayIso;
           const isSelected = d != null && iso(year, month, d) === selectedDate;
 
@@ -136,8 +136,8 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
                         : "border-line hover:border-edge"}`}
                   style={hasClosed ? {
                     backgroundColor: pnl >= 0
-                      ? `rgba(242, 240, 234, ${intensity})`
-                      : `rgba(0, 0, 0, ${intensity * 2.2})`,
+                      ? `rgba(63, 207, 142, ${intensity})`
+                      : `rgba(240, 101, 95, ${intensity})`,
                   } : undefined}
                 >
                   <div className="flex w-full items-start justify-between">

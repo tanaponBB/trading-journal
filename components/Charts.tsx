@@ -17,20 +17,23 @@ interface Props {
 
 type Tab = "equity" | "daily";
 
-/** Monochrome chart ink, mirrored from the Tailwind tokens. */
+/** Chart ink, mirrored from the Tailwind tokens. Neutral shell, coloured P/L. */
 const INK = {
   chalk: "#F2F0EA",
   ash: "#8A8681",
   line: "#2C2C2C",
   edge: "#454545",
   panel: "#1A1A1A",
-  down: "#6E6A65",
+  up: "#3FCF8E",
+  down: "#F0655F",
 } as const;
 
 export default function Charts({ trades, baseWallet, currency }: Props) {
   const [tab, setTab] = useState<Tab>("equity");
 
   const equity = useMemo(() => equityCurve(trades, baseWallet), [trades, baseWallet]);
+  // the curve takes the colour of where the account currently sits vs. its base wallet
+  const curveInk = (equity[equity.length - 1]?.equity ?? baseWallet) >= baseWallet ? INK.up : INK.down;
   const daily = useMemo(
     () => [...pnlByDay(trades).entries()]
       .filter(([, v]) => v.count > v.open)
@@ -87,21 +90,21 @@ export default function Charts({ trades, baseWallet, currency }: Props) {
               <AreaChart data={equity} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
                 <defs>
                   <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={INK.chalk} stopOpacity={0.22} />
-                    <stop offset="100%" stopColor={INK.chalk} stopOpacity={0.01} />
+                    <stop offset="0%" stopColor={curveInk} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={curveInk} stopOpacity={0.01} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={INK.line} strokeDasharray="3 6" vertical={false} />
                 <XAxis dataKey="date" tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={{ stroke: INK.line }} minTickGap={28} />
                 <YAxis tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={false} width={72}
                   domain={["auto", "auto"]} tickFormatter={(v: number) => fmtMoney(v, currency)} />
-                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK.ash }} itemStyle={{ color: INK.chalk }}
+                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK.ash }} itemStyle={{ color: curveInk }}
                   cursor={{ stroke: INK.edge, strokeDasharray: "3 3" }}
                   formatter={(v) => [fmtMoney(Number(v), currency), "Equity"]} />
                 <ReferenceLine y={baseWallet} stroke={INK.edge} strokeDasharray="4 6"
                   label={{ value: "base", fill: INK.ash, fontSize: 10, position: "insideTopRight" }} />
-                <Area type="monotone" dataKey="equity" stroke={INK.chalk} strokeWidth={1.75} fill="url(#equityFill)"
-                  dot={{ r: 2, fill: INK.chalk, strokeWidth: 0 }} activeDot={{ r: 4, fill: INK.chalk }} />
+                <Area type="monotone" dataKey="equity" stroke={curveInk} strokeWidth={1.75} fill="url(#equityFill)"
+                  dot={{ r: 2, fill: curveInk, strokeWidth: 0 }} activeDot={{ r: 4, fill: curveInk }} />
               </AreaChart>
             ) : (
               <BarChart data={daily} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -113,16 +116,10 @@ export default function Charts({ trades, baseWallet, currency }: Props) {
                   cursor={{ fill: "rgba(242,240,234,0.04)" }}
                   formatter={(v) => [fmtMoney(Number(v), currency, true), "Net P/L"]} />
                 <ReferenceLine y={0} stroke={INK.edge} />
-                {/* wins are solid off-white, losses are hollowed out — readable without colour */}
+                {/* green up-days, red down-days */}
                 <Bar dataKey="pnl" radius={[3, 3, 0, 0]} maxBarSize={36}>
                   {daily.map((d, i) => (
-                    <Cell
-                      key={i}
-                      fill={d.pnl >= 0 ? INK.chalk : INK.down}
-                      fillOpacity={d.pnl >= 0 ? 0.9 : 0.45}
-                      stroke={d.pnl >= 0 ? "none" : INK.down}
-                      strokeWidth={d.pnl >= 0 ? 0 : 1}
-                    />
+                    <Cell key={i} fill={d.pnl >= 0 ? INK.up : INK.down} fillOpacity={0.9} />
                   ))}
                 </Bar>
               </BarChart>
