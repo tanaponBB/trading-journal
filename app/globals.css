@@ -18,8 +18,13 @@
   --c-chalk: 242 240 234;   /* #F2F0EA primary text */
   --c-ash:   168 164 159;   /* #A8A49F muted text  — 7.0:1 on panel */
   --c-dim:   141 137 132;   /* #8D8984 faintest text — 4.6:1 on raised surface */
-  --c-up:    245 243 238;   /* #F5F3EE profit — max contrast */
-  --c-down:  155 151 146;   /* #9B9792 loss — recessed vs up, still 6.0:1 */
+  --c-chalk-hi: 255 253 248; /* filled-button hover — brighter than chalk, still neutral */
+
+  /* colour is reserved for money */
+  --c-up:      63 207 142;  /* #3FCF8E profit — green,  8.7:1 on panel */
+  --c-up-lo:   42 110 81;   /* #2A6E51 profit, recessed (fills, hairlines) */
+  --c-down:    240 101 95;  /* #F0655F loss — red,      5.6:1 on panel */
+  --c-down-lo: 122 55 51;   /* #7A3733 loss, recessed */
 
   --glow-a: 0.035;          /* backdrop wash strength */
   --glow-b: 0.022;
@@ -39,8 +44,13 @@
   --c-chalk: 26 26 26;      /* #1A1A1A primary text — dark grey, not black */
   --c-ash:   87 83 78;      /* #57534E muted text  — 7.0:1 on panel */
   --c-dim:   105 101 96;    /* #696560 faintest text — 4.6:1 on raised surface */
-  --c-up:    20 20 20;      /* #141414 profit — max contrast */
-  --c-down:  97 93 88;      /* #615D58 loss — recessed vs up, still 6.0:1 */
+  --c-chalk-hi: 0 0 0;      /* filled-button hover — deeper than chalk, still neutral */
+
+  /* same hues as dark, darkened so they stay legible on off-white */
+  --c-up:      35 115 79;   /* #23734F profit — green,  4.6:1 on every surface */
+  --c-up-lo:   163 214 188; /* #A3D6BC profit, recessed (fills, hairlines) */
+  --c-down:    168 70 66;   /* #A84642 loss — red,      4.6:1 on every surface */
+  --c-down-lo: 232 186 184; /* #E8BAB8 loss, recessed */
 
   --glow-a: 0.05;
   --glow-b: 0.035;
@@ -108,10 +118,10 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     @apply rounded-lg border border-line px-3 py-1.5 text-sm text-ash transition-colors
       hover:border-edge hover:text-chalk;
   }
-  /* the one filled control — inverts against the page */
+  /* the one filled control — inverts against the page (stays neutral: colour means money) */
   .btn-solid {
     @apply rounded-lg bg-chalk px-5 py-2.5 font-display text-sm font-semibold text-base
-      transition-colors hover:bg-up;
+      transition-colors hover:bg-white;
   }
 }
 

@@ -80,15 +80,16 @@ export interface Ink {
   line: string;
   edge: string;
   panel: string;
+  up: string;
   down: string;
 }
 
 const FALLBACK: Record<Theme, Ink> = {
-  dark:  { chalk: "#F2F0EA", ash: "#A8A49F", dim: "#8D8984", line: "#2C2C2C", edge: "#454545", panel: "#1A1A1A", down: "#9B9792" },
-  light: { chalk: "#1A1A1A", ash: "#57534E", dim: "#696560", line: "#DAD6CC", edge: "#A9A399", panel: "#F7F5F0", down: "#615D58" },
+  dark:  { chalk: "rgb(242 240 234)", ash: "rgb(168 164 159)", dim: "rgb(141 137 132)", line: "rgb(44 44 44)", edge: "rgb(69 69 69)", panel: "rgb(26 26 26)", up: "rgb(63 207 142)", down: "rgb(240 101 95)" },
+  light: { chalk: "rgb(26 26 26)", ash: "rgb(87 83 78)", dim: "rgb(105 101 96)", line: "rgb(218 214 204)", edge: "rgb(169 163 153)", panel: "rgb(247 245 240)", up: "rgb(35 115 79)", down: "rgb(168 70 66)" },
 };
 
-const KEYS = ["chalk", "ash", "dim", "line", "edge", "panel", "down"] as const;
+const KEYS = ["chalk", "ash", "dim", "line", "edge", "panel", "up", "down"] as const;
 
 /** Reads the live CSS custom properties so charts restyle with the rest of the UI. */
 export function useInk(): Ink {
@@ -107,3 +108,8 @@ export function useInk(): Ink {
 
   return ink;
 }
+
+/** Same colour at a given alpha. Recharts needs literal strings — var() in an
+ *  SVG presentation attribute would not resolve. */
+export const wash = (color: string, alpha: number) =>
+  color.replace(/^rgb\(([^)/]+)\)$/, `rgb($1 / ${alpha})`);

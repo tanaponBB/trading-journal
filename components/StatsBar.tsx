@@ -44,7 +44,7 @@ export default function StatsBar({ stats, baseWallet, currency, onOpenSettings }
         >
           {fmtMoney(stats.realized, currency, true)}
         </span>
-        <div ref={growthRef} className={`mt-1 font-mono text-xs tabular-nums ${growth >= 0 ? "text-ash" : "text-down"}`}>
+        <div ref={growthRef} className={`mt-1 font-mono text-xs tabular-nums ${growth >= 0 ? "text-up/70" : "text-down/70"}`}>
           {growth >= 0 ? "+" : ""}{growth.toFixed(2)}% of base
         </div>
       </Cell>
@@ -54,15 +54,15 @@ export default function StatsBar({ stats, baseWallet, currency, onOpenSettings }
           {(stats.winRate * 100).toFixed(1)}%
         </span>
         <div className="mt-1 font-mono text-xs text-ash">
-          <span className="text-chalk">{stats.wins}W</span>
+          <span className="text-up">{stats.wins}W</span>
           <span className="text-dim"> · </span>
           <span className="text-down">{stats.losses}L</span>
           {stats.breakeven > 0 && <span className="text-dim"> · {stats.breakeven}BE</span>}
         </div>
-        {/* win/loss ratio as a hairline bar — no colour needed to read it */}
-        <div className="mt-2 h-px w-full bg-line">
+        {/* win/loss ratio as a hairline bar — green fill over a red track */}
+        <div className="mt-2 h-px w-full bg-down/40">
           <div
-            className="h-px bg-chalk transition-[width] duration-700 ease-out"
+            className="h-px bg-up transition-[width] duration-700 ease-out"
             style={{ width: `${Math.max(0, Math.min(100, stats.winRate * 100))}%` }}
           />
         </div>

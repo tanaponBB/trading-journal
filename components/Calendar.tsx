@@ -113,17 +113,12 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
           const cell = d != null ? daily.get(iso(year, month, d)) : undefined;
           const pnl = cell?.pnl ?? 0;
           const hasClosed = cell != null && cell.count > cell.open;
-          // Monochrome heat, theme-agnostic: both themes tint toward the text colour,
-          // so wins read as a solid block and losses as a hatch. No hue involved.
-          const intensity = hasClosed ? 0.05 + 0.16 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
-          const heat = !hasClosed
-            ? undefined
-            : pnl >= 0
-              ? { backgroundColor: `rgb(var(--c-chalk) / ${intensity})` }
-              : {
-                  backgroundImage:
-                    `repeating-linear-gradient(135deg, rgb(var(--c-chalk) / ${intensity * 1.6}) 0 1.5px, transparent 1.5px 6px)`,
-                };
+          // Colour heat: greener the bigger the win, redder the bigger the loss.
+          // Driven by the palette vars so both themes get their own green/red.
+          const intensity = hasClosed ? 0.07 + 0.21 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
+          const heat = hasClosed
+            ? { backgroundColor: `rgb(var(--c-${pnl >= 0 ? "up" : "down"}) / ${intensity})` }
+            : undefined;
           const isToday = d != null && iso(year, month, d) === todayIso;
           const isSelected = d != null && iso(year, month, d) === selectedDate;
 
