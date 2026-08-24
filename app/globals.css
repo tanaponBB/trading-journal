@@ -7,19 +7,21 @@
 }
 
 body {
+  /* barely-there vignette so large flat panels don't feel dead */
   background-image:
-    radial-gradient(1200px 600px at 80% -10%, rgba(52, 211, 153, 0.06), transparent 60%),
-    radial-gradient(900px 500px at 0% 110%, rgba(232, 196, 104, 0.04), transparent 60%);
+    radial-gradient(1100px 620px at 78% -12%, rgba(242, 240, 234, 0.035), transparent 62%),
+    radial-gradient(820px 520px at -5% 108%, rgba(242, 240, 234, 0.022), transparent 62%);
   min-height: 100vh;
 }
 
-/* thin scrollbars that match the theme */
+/* thin monochrome scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1d3527 transparent;
+  scrollbar-color: #2c2c2c transparent;
 }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: #1d3527; border-radius: 8px; }
+*::-webkit-scrollbar-thumb { background: #2c2c2c; border-radius: 8px; }
+*::-webkit-scrollbar-thumb:hover { background: #454545; }
 *::-webkit-scrollbar-track { background: transparent; }
 
 /* remove number input spinners — cleaner for price fields */
@@ -30,20 +32,46 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
+::selection { background: rgba(242, 240, 234, 0.16); }
+
+/* keyboard focus stays visible — and stays monochrome */
+:focus-visible {
+  outline: 2px solid rgba(242, 240, 234, 0.5);
+  outline-offset: 2px;
+}
+
 @layer components {
   .field {
-    @apply w-full rounded-lg border border-hedge bg-ink px-3 py-2 font-mono text-sm text-fog
-      placeholder:text-sage/50 outline-none transition-colors
-      focus:border-leaf focus:ring-1 focus:ring-leaf/40;
+    @apply w-full rounded-lg border border-line bg-base px-3 py-2 font-mono text-sm text-chalk
+      placeholder:text-dim outline-none transition-colors
+      focus:border-edge focus:ring-1 focus:ring-chalk/15;
   }
   .field-label {
-    @apply mb-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-sage;
+    @apply mb-1 block text-[11px] font-medium uppercase tracking-[0.16em] text-ash;
+  }
+  /* neutral panel — the single surface primitive the whole UI is built from */
+  .panel {
+    @apply rounded-panel border border-line bg-panel;
+  }
+  /* quiet outlined control */
+  .btn-ghost {
+    @apply rounded-lg border border-line px-3 py-1.5 text-sm text-ash transition-colors
+      hover:border-edge hover:text-chalk;
+  }
+  /* the one filled control — off-white on dark grey */
+  .btn-solid {
+    @apply rounded-lg bg-chalk px-5 py-2.5 font-display text-sm font-semibold text-base
+      transition-colors hover:bg-up;
   }
 }
+
+/* GSAP sets these on mount; keep pre-paint state hidden to avoid a flash */
+[data-anim] { visibility: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+  [data-anim] { visibility: visible; }
 }

@@ -14,7 +14,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${display.variable} ${body.variable} ${mono.variable} bg-ink text-fog font-body antialiased`}>
+      <head>
+        {/* Without JS the entrance animations never run — make sure content still shows. */}
+        <noscript>
+          <style>{`[data-anim]{visibility:visible !important}`}</style>
+        </noscript>
+      </head>
+      <body className={`${display.variable} ${body.variable} ${mono.variable} bg-base text-chalk font-body antialiased`}>
         {children}
       </body>
     </html>

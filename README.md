@@ -30,6 +30,6 @@ npm run dev
 - P/L is in the quote/account currency; contract size is editable if your broker differs.
 - To move to a real database later, replace `lib/useJournal.ts` with API calls — the rest of the app only consumes the hook.
 - Imported trades are held server-side in `.data/trades.json` (override with `TJ_DATA_DIR`) and
-  merged into the browser on load or via the **Sync broker** button. Machine callers authenticate
+  merged into the browser automatically on load. Machine callers authenticate
   with `IMPORT_API_KEY`.
 # trading-journal

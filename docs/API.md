@@ -10,8 +10,8 @@ XM scraper ──POST /api/import/xm──▶ .data/trades.json ──GET /api/t
 ```
 
 The trade list in the browser still lives in `localStorage`; the server store is
-the landing zone that survives between scrapes. The dashboard syncs on load and
-whenever you press **Sync broker** in the header.
+the landing zone that survives between scrapes. The dashboard pulls it in
+silently on load — there is no sync control in the UI.
 
 ---
 
@@ -258,7 +258,7 @@ curl -X POST "$BASE/api/import/xm" \
   --data-binary @xm-history.json
 ```
 
-Then open the dashboard — it syncs on load, or press **Sync broker**.
+Then open the dashboard — it pulls imported trades in on load.
 
 ### 2. Check the mapping before writing anything
 
@@ -339,8 +339,8 @@ curl -s -H "x-api-key: $KEY" \
   for a database; the route handlers only use `listTrades`, `upsertTrades`,
   `deleteTrades`.
 - **Manual trades** typed into the dashboard stay in the browser and are never
-  touched by an import. On sync, imported rows win on prices but your edited
-  **notes** are kept.
+  touched by an import. On each load, imported rows win on prices but your
+  edited **notes** are kept.
 - **Open positions** — an order without a close price is stored as `OPEN`, so the
   gold ticker shows its floating P/L live.
 - **No rate limiting.** Keep `IMPORT_API_KEY` secret; it grants read, write and

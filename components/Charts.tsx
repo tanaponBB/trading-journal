@@ -5,6 +5,7 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell,
   ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { DUR, EASE, gsap, riseOnScroll, useGsap } from "@/lib/anim";
 import { Trade } from "@/lib/types";
 import { equityCurve, fmtMoney, pnlByDay } from "@/lib/calc";
 
@@ -15,6 +16,16 @@ interface Props {
 }
 
 type Tab = "equity" | "daily";
+
+/** Monochrome chart ink, mirrored from the Tailwind tokens. */
+const INK = {
+  chalk: "#F2F0EA",
+  ash: "#8A8681",
+  line: "#2C2C2C",
+  edge: "#454545",
+  panel: "#1A1A1A",
+  down: "#6E6A65",
+} as const;
 
 export default function Charts({ trades, baseWallet, currency }: Props) {
   const [tab, setTab] = useState<Tab>("equity");
@@ -28,25 +39,35 @@ export default function Charts({ trades, baseWallet, currency }: Props) {
     [trades],
   );
 
+  // The panel reveals when it scrolls into view…
+  const scope = useGsap<HTMLElement>((_self, el) => {
+    riseOnScroll(el, el, 0);
+  }, []);
+
+  // …and the plot cross-fades whenever the tab changes.
+  const plot = useGsap<HTMLDivElement>((_self, el) => {
+    gsap.fromTo(el, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: DUR.base, ease: EASE, clearProps: "transform" });
+  }, [tab]);
+
   const tooltipStyle = {
-    backgroundColor: "#0D1A12",
-    border: "1px solid #1D3527",
-    borderRadius: 12,
+    backgroundColor: INK.panel,
+    border: `1px solid ${INK.edge}`,
+    borderRadius: 10,
     fontFamily: "var(--font-mono)",
     fontSize: 12,
   } as const;
 
   return (
-    <section className="rounded-2xl border border-hedge bg-pine p-4 sm:p-5">
-      <div className="mb-4 flex items-center justify-between">
+    <section ref={scope} className="panel p-4 sm:p-5">
+      <div className="mb-5 flex items-center justify-between">
         <h3 className="font-display text-base font-semibold">Performance</h3>
-        <div className="flex rounded-lg border border-hedge p-0.5">
+        <div className="flex rounded-lg border border-line p-0.5">
           {(["equity", "daily"] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors ${
-                tab === t ? "bg-leaf/15 text-leaf" : "text-sage hover:text-fog"
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                tab === t ? "bg-chalk text-base" : "text-ash hover:text-chalk"
               }`}
             >
               {t === "equity" ? "Equity curve" : "Daily P/L"}
@@ -56,43 +77,52 @@ export default function Charts({ trades, baseWallet, currency }: Props) {
       </div>
 
       {equity.length <= 1 ? (
-        <p className="flex h-64 items-center justify-center rounded-xl border border-dashed border-hedge text-sm text-sage">
+        <p className="flex h-64 items-center justify-center rounded-lg border border-dashed border-line text-sm text-dim">
           Close a trade to start drawing the curve.
         </p>
       ) : (
-        <div className="h-64 sm:h-72">
+        <div ref={plot} className="h-64 sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
             {tab === "equity" ? (
               <AreaChart data={equity} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
                 <defs>
                   <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#34D399" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#34D399" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={INK.chalk} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={INK.chalk} stopOpacity={0.01} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#1D3527" strokeDasharray="3 6" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: "#7E9C8A", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#1D3527" }} minTickGap={28} />
-                <YAxis tick={{ fill: "#7E9C8A", fontSize: 11 }} tickLine={false} axisLine={false} width={72}
+                <CartesianGrid stroke={INK.line} strokeDasharray="3 6" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={{ stroke: INK.line }} minTickGap={28} />
+                <YAxis tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={false} width={72}
                   domain={["auto", "auto"]} tickFormatter={(v: number) => fmtMoney(v, currency)} />
-                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#7E9C8A" }}
+                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK.ash }} itemStyle={{ color: INK.chalk }}
+                  cursor={{ stroke: INK.edge, strokeDasharray: "3 3" }}
                   formatter={(v) => [fmtMoney(Number(v), currency), "Equity"]} />
-                <ReferenceLine y={baseWallet} stroke="#E8C468" strokeDasharray="4 6"
-                  label={{ value: "base", fill: "#E8C468", fontSize: 10, position: "insideTopRight" }} />
-                <Area type="monotone" dataKey="equity" stroke="#34D399" strokeWidth={2} fill="url(#equityFill)"
-                  dot={{ r: 2.5, fill: "#34D399", strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                <ReferenceLine y={baseWallet} stroke={INK.edge} strokeDasharray="4 6"
+                  label={{ value: "base", fill: INK.ash, fontSize: 10, position: "insideTopRight" }} />
+                <Area type="monotone" dataKey="equity" stroke={INK.chalk} strokeWidth={1.75} fill="url(#equityFill)"
+                  dot={{ r: 2, fill: INK.chalk, strokeWidth: 0 }} activeDot={{ r: 4, fill: INK.chalk }} />
               </AreaChart>
             ) : (
               <BarChart data={daily} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-                <CartesianGrid stroke="#1D3527" strokeDasharray="3 6" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: "#7E9C8A", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#1D3527" }} minTickGap={28} />
-                <YAxis tick={{ fill: "#7E9C8A", fontSize: 11 }} tickLine={false} axisLine={false} width={72}
+                <CartesianGrid stroke={INK.line} strokeDasharray="3 6" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={{ stroke: INK.line }} minTickGap={28} />
+                <YAxis tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={false} width={72}
                   tickFormatter={(v: number) => fmtMoney(v, currency)} />
-                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#7E9C8A" }} cursor={{ fill: "rgba(52,211,153,0.06)" }}
+                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK.ash }} itemStyle={{ color: INK.chalk }}
+                  cursor={{ fill: "rgba(242,240,234,0.04)" }}
                   formatter={(v) => [fmtMoney(Number(v), currency, true), "Net P/L"]} />
-                <ReferenceLine y={0} stroke="#1D3527" />
-                <Bar dataKey="pnl" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                <ReferenceLine y={0} stroke={INK.edge} />
+                {/* wins are solid off-white, losses are hollowed out — readable without colour */}
+                <Bar dataKey="pnl" radius={[3, 3, 0, 0]} maxBarSize={36}>
                   {daily.map((d, i) => (
-                    <Cell key={i} fill={d.pnl >= 0 ? "#34D399" : "#F87171"} fillOpacity={0.85} />
+                    <Cell
+                      key={i}
+                      fill={d.pnl >= 0 ? INK.chalk : INK.down}
+                      fillOpacity={d.pnl >= 0 ? 0.9 : 0.45}
+                      stroke={d.pnl >= 0 ? "none" : INK.down}
+                      strokeWidth={d.pnl >= 0 ? 0 : 1}
+                    />
                   ))}
                 </Bar>
               </BarChart>

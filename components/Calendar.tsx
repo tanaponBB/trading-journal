@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { DUR, EASE, gsap, useGsap } from "@/lib/anim";
 import { Trade } from "@/lib/types";
 import { fmtMoney, pnlByDay } from "@/lib/calc";
 
@@ -64,67 +65,95 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
     return m || 1;
   }, [cells, daily, year, month]);
 
+  // Grid re-deals itself whenever the month changes.
+  const scope = useGsap<HTMLElement>((_self, el) => {
+    gsap.fromTo(
+      el.querySelectorAll("[data-cell]"),
+      { autoAlpha: 0, y: 8, scale: 0.965 },
+      {
+        autoAlpha: 1, y: 0, scale: 1,
+        duration: DUR.fast, ease: EASE,
+        stagger: { each: 0.012, from: "start", grid: "auto" },
+        clearProps: "transform",
+      },
+    );
+    gsap.fromTo(
+      el.querySelector("[data-month-label]"),
+      { autoAlpha: 0, y: 6 },
+      { autoAlpha: 1, y: 0, duration: DUR.base, ease: EASE, clearProps: "transform" },
+    );
+  }, [year, month]);
+
   return (
-    <section className="rounded-2xl border border-hedge bg-pine p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <h2 className="font-display text-xl font-semibold tracking-tight">{MONTHS[month]} <span className="text-sage">{year}</span></h2>
-          <span className={`font-mono text-sm ${monthPnl > 0 ? "text-leaf" : monthPnl < 0 ? "text-blood" : "text-sage"}`}>
+    <section ref={scope} className="panel p-4 sm:p-5">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div data-month-label className="flex items-baseline gap-3">
+          <h2 className="font-display text-xl font-semibold tracking-tight">
+            {MONTHS[month]} <span className="text-ash">{year}</span>
+          </h2>
+          <span className={`font-mono text-sm tabular-nums ${monthPnl > 0 ? "text-up" : monthPnl < 0 ? "text-down" : "text-dim"}`}>
             {monthPnl === 0 ? "" : fmtMoney(monthPnl, currency, true)}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onPrev} aria-label="Previous month" className="rounded-lg border border-hedge px-3 py-1.5 text-sm text-sage transition-colors hover:border-fern hover:text-fog">←</button>
-          <button onClick={onToday} className="rounded-lg border border-hedge px-3 py-1.5 text-sm text-sage transition-colors hover:border-fern hover:text-fog">Today</button>
-          <button onClick={onNext} aria-label="Next month" className="rounded-lg border border-hedge px-3 py-1.5 text-sm text-sage transition-colors hover:border-fern hover:text-fog">→</button>
+        <div className="flex items-center gap-1.5">
+          <button onClick={onPrev} aria-label="Previous month" className="btn-ghost">←</button>
+          <button onClick={onToday} className="btn-ghost">Today</button>
+          <button onClick={onNext} aria-label="Next month" className="btn-ghost">→</button>
         </div>
       </div>
 
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2 md:grid-cols-[repeat(7,1fr)_64px]">
         {WEEKDAYS.map(d => (
-          <div key={d} className="pb-1 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-sage">{d}</div>
+          <div key={d} className="pb-1.5 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-dim">{d}</div>
         ))}
-        <div className="hidden pb-1 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-gold/80 md:block">Week</div>
+        <div className="hidden pb-1.5 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-dim md:block">Week</div>
 
         {cells.map((d, i) => {
           const rowEnd = i % 7 === 6;
           const cell = d != null ? daily.get(iso(year, month, d)) : undefined;
           const pnl = cell?.pnl ?? 0;
           const hasClosed = cell != null && cell.count > cell.open;
-          const intensity = hasClosed ? 0.12 + 0.28 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
+          // Monochrome heat: profit lifts toward off-white, loss sinks toward black.
+          const intensity = hasClosed ? 0.05 + 0.16 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
           const isToday = d != null && iso(year, month, d) === todayIso;
           const isSelected = d != null && iso(year, month, d) === selectedDate;
 
           return (
             <FragmentRow key={i} showWeek={rowEnd} weekPnl={weeklyPnl[(i / 7) | 0]} currency={currency}>
               {d == null ? (
-                <div className="aspect-square rounded-xl border border-transparent sm:aspect-[4/3]" />
+                <div className="aspect-square rounded-lg border border-transparent sm:aspect-[4/3]" />
               ) : (
                 <button
+                  data-cell
                   onClick={() => onSelectDate(iso(year, month, d))}
                   aria-label={`Day ${d}`}
-                  className={`group relative flex aspect-square flex-col justify-between overflow-hidden rounded-xl border p-1.5 text-left transition-all sm:aspect-[4/3] sm:p-2
-                    ${isSelected ? "border-gold shadow-goldglow" : isToday ? "border-leaf/70" : "border-hedge hover:border-fern"}`}
+                  aria-current={isToday ? "date" : undefined}
+                  className={`group relative flex aspect-square flex-col justify-between overflow-hidden rounded-lg border p-1.5 text-left transition-colors sm:aspect-[4/3] sm:p-2
+                    ${isSelected
+                      ? "border-chalk"
+                      : isToday
+                        ? "border-edge"
+                        : "border-line hover:border-edge"}`}
                   style={hasClosed ? {
                     backgroundColor: pnl >= 0
-                      ? `rgba(52, 211, 153, ${intensity})`
-                      : `rgba(248, 113, 113, ${intensity})`,
+                      ? `rgba(242, 240, 234, ${intensity})`
+                      : `rgba(0, 0, 0, ${intensity * 2.2})`,
                   } : undefined}
                 >
                   <div className="flex w-full items-start justify-between">
-                    <span className={`font-mono text-xs ${isToday ? "text-leaf" : "text-sage"}`}>{d}</span>
+                    <span className={`font-mono text-xs tabular-nums ${isToday ? "text-chalk" : "text-dim"}`}>{d}</span>
                     {cell && cell.open > 0 && (
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-gold" title={`${cell.open} open`} />
+                      <span className="mt-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-chalk" title={`${cell.open} open`} />
                     )}
                   </div>
                   {cell && (
                     <div className="w-full">
                       {hasClosed && (
-                        <div className={`truncate font-mono text-[10px] font-semibold sm:text-xs ${pnl >= 0 ? "text-leaf" : "text-blood"}`}>
+                        <div className={`truncate font-mono text-[10px] font-semibold tabular-nums sm:text-xs ${pnl >= 0 ? "text-up" : "text-down"}`}>
                           {fmtMoney(pnl, currency, true)}
                         </div>
                       )}
-                      <div className="text-[9px] text-sage/80 sm:text-[10px]">{cell.count} trade{cell.count > 1 ? "s" : ""}</div>
+                      <div className="text-[9px] text-dim sm:text-[10px]">{cell.count} trade{cell.count > 1 ? "s" : ""}</div>
                     </div>
                   )}
                 </button>
@@ -137,7 +166,7 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
   );
 }
 
-/** Renders the cell, plus the gold weekly-total column at each row end (desktop). */
+/** Renders the cell, plus the weekly-total column at each row end (desktop). */
 function FragmentRow({ children, showWeek, weekPnl, currency }: {
   children: React.ReactNode; showWeek: boolean; weekPnl: number; currency: string;
 }) {
@@ -145,8 +174,8 @@ function FragmentRow({ children, showWeek, weekPnl, currency }: {
     <>
       {children}
       {showWeek && (
-        <div className="hidden items-center justify-center rounded-xl border border-hedge/60 bg-moss/40 md:flex">
-          <span className={`font-mono text-[10px] font-medium ${weekPnl > 0 ? "text-leaf" : weekPnl < 0 ? "text-blood" : "text-sage/50"}`}>
+        <div data-cell className="hidden items-center justify-center rounded-lg border border-line/70 bg-raise/50 md:flex">
+          <span className={`font-mono text-[10px] font-medium tabular-nums ${weekPnl > 0 ? "text-up" : weekPnl < 0 ? "text-down" : "text-dim"}`}>
             {weekPnl === 0 ? "·" : fmtMoney(weekPnl, currency, true)}
           </span>
         </div>

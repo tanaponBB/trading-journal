@@ -1,5 +1,10 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Monochrome design system.
+ * "Black" is a soft dark grey, "white" is a warm off-white — never #000 / #fff.
+ * Profit reads bright, loss reads recessed; no hue carries meaning.
+ */
 const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
@@ -8,17 +13,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#07100B",        // page background — deep green-black
-        pine: "#0D1A12",       // surface
-        moss: "#12241A",       // raised surface
-        hedge: "#1D3527",      // borders
-        fern: "#2C5038",       // hover borders
-        leaf: "#34D399",       // profit / long / primary accent
-        leafdim: "#1E6B4C",
-        blood: "#F87171",      // loss / short
-        gold: "#E8C468",       // signature accent (XAUUSD vibes)
-        fog: "#E7F0E9",        // primary text
-        sage: "#7E9C8A",       // muted text
+        base:  "#141414",   // page background — dark grey
+        panel: "#1A1A1A",   // surface
+        raise: "#212121",   // raised surface
+        line:  "#2C2C2C",   // borders
+        edge:  "#454545",   // hover / active borders
+        chalk: "#F2F0EA",   // primary text — off-white
+        ash:   "#8A8681",   // muted text
+        dim:   "#5C5955",   // faintest text
+        up:    "#F5F3EE",   // profit — full brightness
+        down:  "#6E6A65",   // loss — recessed
       },
       fontFamily: {
         display: ["var(--font-display)", "sans-serif"],
@@ -26,8 +30,15 @@ const config: Config = {
         mono: ["var(--font-mono)", "monospace"],
       },
       boxShadow: {
-        glow: "0 0 24px rgba(52, 211, 153, 0.12)",
-        goldglow: "0 0 32px rgba(232, 196, 104, 0.10)",
+        lift: "0 1px 0 0 rgba(242, 240, 234, 0.04) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.8)",
+        pop:  "0 24px 60px -24px rgba(0, 0, 0, 0.9)",
+      },
+      borderRadius: {
+        panel: "14px",
+      },
+      // Tailwind's stock ring is blue — keep even the fallback monochrome.
+      ringColor: {
+        DEFAULT: "rgba(242, 240, 234, 0.25)",
       },
     },
   },
