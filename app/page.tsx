@@ -8,6 +8,7 @@ import GoldTicker from "@/components/GoldTicker";
 import SettingsModal from "@/components/SettingsModal";
 import SignOutButton from "@/components/SignOutButton";
 import StatsBar from "@/components/StatsBar";
+import ThemeToggle from "@/components/ThemeToggle";
 import TradeModal from "@/components/TradeModal";
 import Wordmark from "@/components/Wordmark";
 import { DUR, rise, useGsap } from "@/lib/anim";
@@ -87,6 +88,9 @@ export default function Home() {
           >
             + New trade
           </button>
+          <div data-anim="tools">
+            <ThemeToggle />
+          </div>
           <div data-anim="tools">
             <SignOutButton />
           </div>

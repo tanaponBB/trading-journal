@@ -6,6 +6,7 @@ import {
   ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { DUR, EASE, gsap, riseOnScroll, useGsap } from "@/lib/anim";
+import { useInk } from "@/lib/theme";
 import { Trade } from "@/lib/types";
 import { equityCurve, fmtMoney, pnlByDay } from "@/lib/calc";
 
@@ -17,18 +18,10 @@ interface Props {
 
 type Tab = "equity" | "daily";
 
-/** Monochrome chart ink, mirrored from the Tailwind tokens. */
-const INK = {
-  chalk: "#F2F0EA",
-  ash: "#8A8681",
-  line: "#2C2C2C",
-  edge: "#454545",
-  panel: "#1A1A1A",
-  down: "#6E6A65",
-} as const;
-
 export default function Charts({ trades, baseWallet, currency }: Props) {
   const [tab, setTab] = useState<Tab>("equity");
+  // Recharts needs literal colours, so resolve the palette tokens for the live theme.
+  const INK = useInk();
 
   const equity = useMemo(() => equityCurve(trades, baseWallet), [trades, baseWallet]);
   const daily = useMemo(

@@ -113,8 +113,17 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
           const cell = d != null ? daily.get(iso(year, month, d)) : undefined;
           const pnl = cell?.pnl ?? 0;
           const hasClosed = cell != null && cell.count > cell.open;
-          // Monochrome heat: profit lifts toward off-white, loss sinks toward black.
+          // Monochrome heat, theme-agnostic: both themes tint toward the text colour,
+          // so wins read as a solid block and losses as a hatch. No hue involved.
           const intensity = hasClosed ? 0.05 + 0.16 * Math.min(1, Math.abs(pnl) / maxAbs) : 0;
+          const heat = !hasClosed
+            ? undefined
+            : pnl >= 0
+              ? { backgroundColor: `rgb(var(--c-chalk) / ${intensity})` }
+              : {
+                  backgroundImage:
+                    `repeating-linear-gradient(135deg, rgb(var(--c-chalk) / ${intensity * 1.6}) 0 1.5px, transparent 1.5px 6px)`,
+                };
           const isToday = d != null && iso(year, month, d) === todayIso;
           const isSelected = d != null && iso(year, month, d) === selectedDate;
 
@@ -134,11 +143,7 @@ export default function Calendar({ year, month, trades, currency, selectedDate, 
                       : isToday
                         ? "border-edge"
                         : "border-line hover:border-edge"}`}
-                  style={hasClosed ? {
-                    backgroundColor: pnl >= 0
-                      ? `rgba(242, 240, 234, ${intensity})`
-                      : `rgba(0, 0, 0, ${intensity * 2.2})`,
-                  } : undefined}
+                  style={heat}
                 >
                   <div className="flex w-full items-start justify-between">
                     <span className={`font-mono text-xs tabular-nums ${isToday ? "text-chalk" : "text-dim"}`}>{d}</span>

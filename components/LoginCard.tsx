@@ -1,6 +1,7 @@
 "use client";
 
 import Wordmark from "@/components/Wordmark";
+import ThemeToggle from "@/components/ThemeToggle";
 import { DUR, EASE, gsap, useGsap } from "@/lib/anim";
 
 interface Props {
@@ -22,7 +23,8 @@ export default function LoginCard({ error, children }: Props) {
   }, []);
 
   return (
-    <div ref={scope} className="w-full max-w-sm rounded-panel border border-line bg-panel p-8 text-center shadow-pop">
+    <div ref={scope} className="relative w-full max-w-sm rounded-panel border border-line bg-panel p-8 text-center shadow-pop">
+      <ThemeToggle className="absolute right-3 top-3 !h-8 !w-8" />
       <div data-stack>
         <h1 className="text-2xl">
           <Wordmark />
