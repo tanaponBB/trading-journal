@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Settings, Trade } from "./types";
+import { Settings, Setup, Trade } from "./types";
 
 const TRADES_KEY = "tj.trades.v1";
+const SETUPS_KEY = "tj.setups.v1";
 const SETTINGS_KEY = "tj.settings.v1";
 
 const DEFAULT_SETTINGS: Settings = { baseWallet: 1000, currency: "USD" };
@@ -26,8 +27,14 @@ function mergeImported(local: Trade[], incoming: Trade[]) {
   return { merged: [...byId.values()], changed };
 }
 
+const newId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : String(Date.now()) + Math.random().toString(16).slice(2);
+
 export function useJournal() {
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [setups, setSetups] = useState<Setup[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
 
@@ -43,6 +50,8 @@ export function useJournal() {
       if (t) setTrades(JSON.parse(t));
       const s = localStorage.getItem(SETTINGS_KEY);
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(s) });
+      const p = localStorage.getItem(SETUPS_KEY);
+      if (p) setSetups(JSON.parse(p));
     } catch {
       // corrupted storage — start fresh
     }
@@ -57,11 +66,14 @@ export function useJournal() {
     if (ready) localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   }, [settings, ready]);
 
+  useEffect(() => {
+    if (ready) localStorage.setItem(SETUPS_KEY, JSON.stringify(setups));
+  }, [setups, ready]);
+
   const addTrade = useCallback((t: Omit<Trade, "id">) => {
-    const id = typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : String(Date.now()) + Math.random().toString(16).slice(2);
+    const id = newId();
     setTrades(prev => [...prev, { ...t, id }]);
+    return id;
   }, []);
 
   const updateTrade = useCallback((id: string, patch: Partial<Trade>) => {
@@ -93,5 +105,48 @@ export function useJournal() {
     if (ready) void pullImported();
   }, [ready, pullImported]);
 
-  return { ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade };
+  const addSetup = useCallback((s: Omit<Setup, "id" | "createdAt" | "status">) => {
+    setSetups(prev => [
+      { ...s, id: newId(), createdAt: new Date().toISOString(), status: "WATCHING" },
+      ...prev,
+    ]);
+  }, []);
+
+  const updateSetup = useCallback((id: string, patch: Partial<Setup>) => {
+    setSetups(prev => prev.map(s => (s.id === id ? { ...s, ...patch } : s)));
+  }, []);
+
+  const deleteSetup = useCallback((id: string) => {
+    setSetups(prev => prev.filter(s => s.id !== id));
+  }, []);
+
+  /**
+   * Promote a planned setup into a real open trade on `date`, and keep the
+   * setup around (marked TAKEN) so the plan-vs-outcome trail survives.
+   */
+  const takeSetup = useCallback((setup: Setup, date: string) => {
+    if (setup.status !== "WATCHING") return;
+    const tradeId = newId();
+    setTrades(prev => [...prev, {
+      id: tradeId,
+      date,
+      symbol: setup.symbol,
+      contractSize: setup.contractSize,
+      direction: setup.direction,
+      lots: setup.lots,
+      entry: setup.entry,
+      sl: setup.sl,
+      tp: setup.tp,
+      status: "OPEN",
+      notes: setup.reason,
+      source: "manual",
+    }]);
+    setSetups(prev => prev.map(s => (s.id === setup.id ? { ...s, status: "TAKEN", tradeId } : s)));
+    return tradeId;
+  }, []);
+
+  return {
+    ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade,
+    setups, addSetup, updateSetup, deleteSetup, takeSetup,
+  };
 }

@@ -1,4 +1,4 @@
-import { Trade } from "./types";
+import { Setup, Trade } from "./types";
 
 const dir = (t: Pick<Trade, "direction">) => (t.direction === "LONG" ? 1 : -1);
 
@@ -127,4 +127,21 @@ export function fmtMoney(n: number, currency = "USD", signed = false): string {
 
 export function fmtNum(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+/** When a setup goes stale. */
+export function setupExpiry(s: Pick<Setup, "createdAt" | "validDays">): Date {
+  const d = new Date(s.createdAt);
+  d.setDate(d.getDate() + s.validDays);
+  return d;
+}
+
+/** Whole days left before a setup expires. Negative once it has. */
+export function setupDaysLeft(s: Pick<Setup, "createdAt" | "validDays">, now = new Date()): number {
+  return Math.ceil((setupExpiry(s).getTime() - now.getTime()) / 86_400_000);
+}
+
+/** A watching setup past its validity window — still listed, but visibly dimmed. */
+export function isSetupStale(s: Pick<Setup, "createdAt" | "validDays" | "status">, now = new Date()): boolean {
+  return s.status === "WATCHING" && setupDaysLeft(s, now) <= 0;
 }
