@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_MISSIONS, MissionConfig } from "./missions";
 import { Settings, Setup, Trade } from "./types";
 
 const TRADES_KEY = "tj.trades.v1";
 const SETUPS_KEY = "tj.setups.v1";
+const MISSIONS_KEY = "tj.missions.v1";
 const SETTINGS_KEY = "tj.settings.v1";
 
 const DEFAULT_SETTINGS: Settings = { baseWallet: 1000, currency: "USD" };
@@ -35,6 +37,7 @@ const newId = () =>
 export function useJournal() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [setups, setSetups] = useState<Setup[]>([]);
+  const [missions, setMissions] = useState<MissionConfig[]>(DEFAULT_MISSIONS);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
 
@@ -52,6 +55,8 @@ export function useJournal() {
       if (s) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(s) });
       const p = localStorage.getItem(SETUPS_KEY);
       if (p) setSetups(JSON.parse(p));
+      const m = localStorage.getItem(MISSIONS_KEY);
+      if (m) setMissions(JSON.parse(m));
     } catch {
       // corrupted storage — start fresh
     }
@@ -69,6 +74,10 @@ export function useJournal() {
   useEffect(() => {
     if (ready) localStorage.setItem(SETUPS_KEY, JSON.stringify(setups));
   }, [setups, ready]);
+
+  useEffect(() => {
+    if (ready) localStorage.setItem(MISSIONS_KEY, JSON.stringify(missions));
+  }, [missions, ready]);
 
   const addTrade = useCallback((t: Omit<Trade, "id">) => {
     const id = newId();
@@ -148,5 +157,6 @@ export function useJournal() {
   return {
     ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade,
     setups, addSetup, updateSetup, deleteSetup, takeSetup,
+    missions, setMissions,
   };
 }

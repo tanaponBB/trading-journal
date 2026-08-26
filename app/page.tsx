@@ -5,6 +5,7 @@ import Calendar from "@/components/Calendar";
 import Charts from "@/components/Charts";
 import DayPanel from "@/components/DayPanel";
 import GoldTicker from "@/components/GoldTicker";
+import MissionBoard from "@/components/MissionBoard";
 import PlanBoard from "@/components/PlanBoard";
 import SettingsModal from "@/components/SettingsModal";
 import SignOutButton from "@/components/SignOutButton";
@@ -28,6 +29,7 @@ export default function Home() {
   const {
     ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade,
     setups, addSetup, updateSetup, deleteSetup, takeSetup,
+    missions, setMissions,
   } = useJournal();
 
   const now = new Date();
@@ -50,6 +52,17 @@ export default function Home() {
     () => (gold.price != null ? floatingGoldPnl(trades, gold.price) : null),
     [trades, gold.price],
   );
+  const tradesByDate = useMemo(() => {
+    const m = new Map<string, Trade[]>();
+    for (const t of trades) {
+      const list = m.get(t.date);
+      if (list) list.push(t);
+      else m.set(t.date, [t]);
+    }
+    return m;
+  }, [trades]);
+  const balance = settings.baseWallet + stats.realized;
+
   const liveSetups = useMemo(
     () => setups.filter(s => s.status === "WATCHING" && !isSetupStale(s)).length,
     [setups],
@@ -185,15 +198,25 @@ export default function Home() {
         )}
 
         {tab === "plan" && (
-          <PlanBoard
-            setups={setups}
-            currency={settings.currency}
-            takeDate={todayIso()}
-            onAdd={addSetup}
-            onUpdate={updateSetup}
-            onDelete={deleteSetup}
-            onTake={onTakeSetup}
-          />
+          <div className="space-y-4 sm:space-y-5">
+            <MissionBoard
+              date={selectedDate}
+              today={todayIso()}
+              tradesByDate={tradesByDate}
+              missions={missions}
+              balance={balance}
+              onSaveMissions={setMissions}
+            />
+            <PlanBoard
+              setups={setups}
+              currency={settings.currency}
+              takeDate={todayIso()}
+              onAdd={addSetup}
+              onUpdate={updateSetup}
+              onDelete={deleteSetup}
+              onTake={onTakeSetup}
+            />
+          </div>
         )}
       </div>
 
