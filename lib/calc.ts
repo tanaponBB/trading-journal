@@ -145,3 +145,48 @@ export function setupDaysLeft(s: Pick<Setup, "createdAt" | "validDays">, now = n
 export function isSetupStale(s: Pick<Setup, "createdAt" | "validDays" | "status">, now = new Date()): boolean {
   return s.status === "WATCHING" && setupDaysLeft(s, now) <= 0;
 }
+
+/**
+ * Account balance at the START of `date` — base wallet plus everything realized
+ * strictly before it. Grading a past day against today's balance would be wrong,
+ * so percentage-based missions use this.
+ */
+export function balanceAsOf(trades: Trade[], date: string, baseWallet: number): number {
+  let realized = 0;
+  for (const t of trades) {
+    if (t.date >= date) continue;
+    realized += tradePnl(t) ?? 0;
+  }
+  return baseWallet + realized;
+}
+
+/** Distinct dates on which at least one trade was closed. */
+export function tradingDayCount(trades: Trade[]): number {
+  const days = new Set<string>();
+  for (const t of trades) if (tradePnl(t) != null) days.add(t.date);
+  return days.size;
+}
+
+/**
+ * Where the balance should be after `days` trading days of compounding at
+ * `dailyPct`. Compounds over days traded, not calendar days — a day you sat out
+ * is not a day you fell behind, which matches how the mission streak treats rest.
+ */
+export function expectedBalance(baseWallet: number, dailyPct: number, days: number): number {
+  return baseWallet * Math.pow(1 + dailyPct / 100, days);
+}
+
+/**
+ * Equity curve points. When `dailyPct` is given, each point also carries the
+ * target balance for that many trading days in, so actual and plan can be drawn
+ * against each other.
+ */
+export function equityWithTarget(
+  trades: Trade[],
+  baseWallet: number,
+  dailyPct: number | null,
+): { date: string; equity: number; pnl: number; target?: number }[] {
+  const points = equityCurve(trades, baseWallet);
+  if (dailyPct == null || dailyPct <= 0) return points;
+  return points.map((p, i) => ({ ...p, target: expectedBalance(baseWallet, dailyPct, i) }));
+}

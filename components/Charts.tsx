@@ -8,22 +8,27 @@ import {
 import { DUR, EASE, gsap, riseOnScroll, useGsap } from "@/lib/anim";
 import { useInk, wash } from "@/lib/theme";
 import { Trade } from "@/lib/types";
-import { equityCurve, fmtMoney, pnlByDay } from "@/lib/calc";
+import { equityWithTarget, fmtMoney, pnlByDay } from "@/lib/calc";
 
 interface Props {
   trades: Trade[];
   baseWallet: number;
   currency: string;
+  /** Daily profit target %, when one is set — draws the plan against the curve. */
+  targetPct?: number | null;
 }
 
 type Tab = "equity" | "daily";
 
-export default function Charts({ trades, baseWallet, currency }: Props) {
+export default function Charts({ trades, baseWallet, currency, targetPct = null }: Props) {
   const [tab, setTab] = useState<Tab>("equity");
   // Recharts needs literal colours, so resolve the palette tokens for the live theme.
   const INK = useInk();
 
-  const equity = useMemo(() => equityCurve(trades, baseWallet), [trades, baseWallet]);
+  const equity = useMemo(
+    () => equityWithTarget(trades, baseWallet, targetPct),
+    [trades, baseWallet, targetPct],
+  );
   // the curve takes the colour of where the account currently sits vs. its base wallet
   const curveInk = (equity[equity.length - 1]?.equity ?? baseWallet) >= baseWallet ? INK.up : INK.down;
   const daily = useMemo(
@@ -90,13 +95,19 @@ export default function Charts({ trades, baseWallet, currency }: Props) {
                 <XAxis dataKey="date" tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={{ stroke: INK.line }} minTickGap={28} />
                 <YAxis tick={{ fill: INK.ash, fontSize: 11 }} tickLine={false} axisLine={false} width={72}
                   domain={["auto", "auto"]} tickFormatter={(v: number) => fmtMoney(v, currency)} />
-                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK.ash }} itemStyle={{ color: curveInk }}
+                <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK.ash }}
                   cursor={{ stroke: INK.edge, strokeDasharray: "3 3" }}
-                  formatter={(v) => [fmtMoney(Number(v), currency), "Equity"]} />
+                  formatter={(v, name) => [fmtMoney(Number(v), currency), String(name)]} />
                 <ReferenceLine y={baseWallet} stroke={INK.edge} strokeDasharray="4 6"
                   label={{ value: "base", fill: INK.ash, fontSize: 10, position: "insideTopRight" }} />
+                {targetPct != null && (
+                  <Area type="monotone" dataKey="target" stroke={INK.ash} strokeWidth={1.25}
+                    strokeDasharray="4 5" fill="none" dot={false} activeDot={false}
+                    name="Plan" isAnimationActive={false} />
+                )}
                 <Area type="monotone" dataKey="equity" stroke={curveInk} strokeWidth={1.75} fill="url(#equityFill)"
-                  dot={{ r: 2, fill: curveInk, strokeWidth: 0 }} activeDot={{ r: 4, fill: curveInk }} />
+                  dot={{ r: 2, fill: curveInk, strokeWidth: 0 }} activeDot={{ r: 4, fill: curveInk }}
+                  name="Equity" />
               </AreaChart>
             ) : (
               <BarChart data={daily} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import MissionCard from "@/components/MissionCard";
-import MissionSettings from "@/components/MissionSettings";
 import { DUR, EASE, gsap, useGsap } from "@/lib/anim";
+import { balanceAsOf } from "@/lib/calc";
 import { DayStatus, MissionConfig, evaluateDay, missionStreak } from "@/lib/missions";
 import { Trade } from "@/lib/types";
 
@@ -12,8 +12,11 @@ interface Props {
   today: string;
   tradesByDate: Map<string, Trade[]>;
   missions: MissionConfig[];
-  balance: number;
-  onSaveMissions: (m: MissionConfig[]) => void;
+  /** Full trade list — needed to reconstruct the balance at the start of any day. */
+  trades: Trade[];
+  baseWallet: number;
+  /** The settings modal lives on the page, so Targets and Missions share one. */
+  onOpenMissions: () => void;
 }
 
 const HISTORY_DAYS = 21;
@@ -24,17 +27,22 @@ const shiftIso = (iso: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-export default function MissionBoard({ date, today, tradesByDate, missions, balance, onSaveMissions }: Props) {
-  const [showSettings, setShowSettings] = useState(false);
+export default function MissionBoard({ date, today, tradesByDate, missions, trades, baseWallet, onOpenMissions }: Props) {
+
+  // Percentage missions grade against the balance the day opened with.
+  const balanceAt = useMemo(
+    () => (d: string) => balanceAsOf(trades, d, baseWallet),
+    [trades, baseWallet],
+  );
 
   const dayTrades = useMemo(() => tradesByDate.get(date) ?? [], [tradesByDate, date]);
   const verdict = useMemo(
-    () => evaluateDay(dayTrades, missions, balance),
-    [dayTrades, missions, balance],
+    () => evaluateDay(dayTrades, missions, balanceAt(date)),
+    [dayTrades, missions, balanceAt, date],
   );
   const streak = useMemo(
-    () => missionStreak(tradesByDate, missions, balance, today),
-    [tradesByDate, missions, balance, today],
+    () => missionStreak(tradesByDate, missions, balanceAt, today),
+    [tradesByDate, missions, balanceAt, today],
   );
 
   // recent history strip, oldest → newest
@@ -43,10 +51,10 @@ export default function MissionBoard({ date, today, tradesByDate, missions, bala
     for (let i = HISTORY_DAYS - 1; i >= 0; i--) {
       const iso = shiftIso(today, -i);
       const t = tradesByDate.get(iso) ?? [];
-      out.push({ iso, status: evaluateDay(t, missions, balance).status });
+      out.push({ iso, status: evaluateDay(t, missions, balanceAt(iso)).status });
     }
     return out;
-  }, [tradesByDate, missions, balance, today]);
+  }, [tradesByDate, missions, balanceAt, today]);
 
   const scope = useGsap<HTMLDivElement>((_self, el) => {
     gsap.fromTo(
@@ -78,7 +86,7 @@ export default function MissionBoard({ date, today, tradesByDate, missions, bala
                   : `Graded from ${dayTrades.length} trade${dayTrades.length === 1 ? "" : "s"}.`}
               </p>
             </div>
-            <button onClick={() => setShowSettings(true)} className="btn-ghost">Edit</button>
+            <button onClick={onOpenMissions} className="btn-ghost">Edit</button>
           </div>
 
           {verdict.results.length === 0 ? (
@@ -147,14 +155,6 @@ export default function MissionBoard({ date, today, tradesByDate, missions, bala
           </div>
         </section>
       </div>
-
-      {showSettings && (
-        <MissionSettings
-          missions={missions}
-          onSave={onSaveMissions}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
     </div>
   );
 }

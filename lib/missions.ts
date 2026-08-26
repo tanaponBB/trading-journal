@@ -12,7 +12,9 @@ export type MissionKind =
   | "ALL_HAVE_REASON"
   | "MIN_RR"
   | "MAX_LOSSES"
-  | "RISK_CAP";
+  | "RISK_CAP"
+  | "PROFIT_TARGET"
+  | "MAX_DAILY_LOSS";
 
 export interface MissionConfig {
   kind: MissionKind;
@@ -139,13 +141,48 @@ export const MISSION_DEFS: Record<MissionKind, MissionDef> = {
       };
     },
   },
+
+  PROFIT_TARGET: {
+    label: t => `Make at least +${t}% on the day`,
+    blurb: "Percent of the balance you started the day with, so it compounds.",
+    hasTarget: true, min: 0.1, max: 10, step: 0.1, unit: "% of balance",
+    grade: (trades, target, balance) => {
+      const closed = trades.filter(t => tradePnl(t) != null);
+      if (closed.length === 0) return { done: false, detail: "nothing closed yet" };
+      const pnl = closed.reduce((a, t) => a + (tradePnl(t) ?? 0), 0);
+      const pct = balance > 0 ? (pnl / balance) * 100 : 0;
+      return {
+        done: pct >= target - 1e-9,
+        detail: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% of ${target}%`,
+      };
+    },
+  },
+
+  MAX_DAILY_LOSS: {
+    label: t => `Lose no more than ${t}% on the day`,
+    blurb: "The floor under the profit target — stop before a bad day compounds.",
+    hasTarget: true, min: 0.5, max: 20, step: 0.5, unit: "% of balance",
+    grade: (trades, target, balance) => {
+      const closed = trades.filter(t => tradePnl(t) != null);
+      if (closed.length === 0) return { done: true, detail: "nothing closed yet" };
+      const pnl = closed.reduce((a, t) => a + (tradePnl(t) ?? 0), 0);
+      const pct = balance > 0 ? (pnl / balance) * 100 : 0;
+      return {
+        done: pct >= -target - 1e-9,
+        detail: pct >= 0 ? `up ${pct.toFixed(2)}%` : `down ${Math.abs(pct).toFixed(2)}% of ${target}% allowed`,
+      };
+    },
+  },
 };
 
 export const MISSION_ORDER: MissionKind[] = [
-  "MAX_TRADES", "ALL_HAVE_SL", "MIN_RR", "MAX_LOSSES", "ALL_HAVE_REASON", "RISK_CAP",
+  "PROFIT_TARGET", "MAX_DAILY_LOSS", "MAX_TRADES", "ALL_HAVE_SL",
+  "MIN_RR", "MAX_LOSSES", "ALL_HAVE_REASON", "RISK_CAP",
 ];
 
 export const DEFAULT_MISSIONS: MissionConfig[] = [
+  { kind: "PROFIT_TARGET", target: 1, enabled: true },
+  { kind: "MAX_DAILY_LOSS", target: 2, enabled: true },
   { kind: "MAX_TRADES", target: 3, enabled: true },
   { kind: "ALL_HAVE_SL", target: 0, enabled: true },
   { kind: "MIN_RR", target: 2, enabled: true },
@@ -178,7 +215,9 @@ export function evaluateDay(trades: Trade[], configs: MissionConfig[], balance: 
 export function missionStreak(
   tradesByDate: Map<string, Trade[]>,
   configs: MissionConfig[],
-  balance: number,
+  /** Balance at the start of a given day — percentage missions need the balance
+   *  that day actually began with, not the one the account holds now. */
+  balanceAt: (date: string) => number,
   today: string,
   lookbackDays = 365,
 ): number {
@@ -189,7 +228,7 @@ export function missionStreak(
     const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
     const dayTrades = tradesByDate.get(iso) ?? [];
     if (dayTrades.length > 0) {
-      const { status } = evaluateDay(dayTrades, configs, balance);
+      const { status } = evaluateDay(dayTrades, configs, balanceAt(iso));
       if (status !== "PASS") break;
       streak++;
     }
@@ -218,4 +257,10 @@ export function referenceCode(date: string, passed: number, total: number): stri
     out += (h & 0xf).toString(16);
   }
   return out;
+}
+
+/** The daily profit target, when enabled — also the rate the equity plan compounds at. */
+export function dailyTargetPct(configs: MissionConfig[]): number | null {
+  const m = configs.find(c => c.kind === "PROFIT_TARGET" && c.enabled);
+  return m && m.target > 0 ? m.target : null;
 }

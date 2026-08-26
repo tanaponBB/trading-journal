@@ -6,16 +6,19 @@ import Charts from "@/components/Charts";
 import DayPanel from "@/components/DayPanel";
 import GoldTicker from "@/components/GoldTicker";
 import MissionBoard from "@/components/MissionBoard";
+import MissionSettings from "@/components/MissionSettings";
 import PlanBoard from "@/components/PlanBoard";
 import SettingsModal from "@/components/SettingsModal";
 import SignOutButton from "@/components/SignOutButton";
 import StatsBar from "@/components/StatsBar";
+import TargetsPanel from "@/components/TargetsPanel";
 import Tabs, { TabKey } from "@/components/Tabs";
 import ThemeToggle from "@/components/ThemeToggle";
 import TradeModal from "@/components/TradeModal";
 import Wordmark from "@/components/Wordmark";
 import { DUR, EASE, gsap, rise, useGsap, useIsoLayoutEffect } from "@/lib/anim";
 import { computeStats, floatingGoldPnl, isSetupStale } from "@/lib/calc";
+import { dailyTargetPct } from "@/lib/missions";
 import { Setup, Trade } from "@/lib/types";
 import { useGoldPrice } from "@/lib/useGoldPrice";
 import { useJournal } from "@/lib/useJournal";
@@ -40,6 +43,7 @@ export default function Home() {
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [editing, setEditing] = useState<Trade | undefined>(undefined);
   const [showSettings, setShowSettings] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
 
   const gold = useGoldPrice();
 
@@ -193,19 +197,30 @@ export default function Home() {
               currency={settings.currency}
               onOpenSettings={() => setShowSettings(true)}
             />
-            <Charts trades={trades} baseWallet={settings.baseWallet} currency={settings.currency} />
+            <Charts trades={trades} baseWallet={settings.baseWallet} currency={settings.currency}
+              targetPct={dailyTargetPct(missions)} />
           </div>
         )}
 
         {tab === "plan" && (
           <div className="space-y-4 sm:space-y-5">
+            <TargetsPanel
+              trades={trades}
+              dayTrades={dayTrades}
+              date={selectedDate}
+              baseWallet={settings.baseWallet}
+              currency={settings.currency}
+              missions={missions}
+              onOpenMissions={() => setShowMissions(true)}
+            />
             <MissionBoard
               date={selectedDate}
               today={todayIso()}
               tradesByDate={tradesByDate}
               missions={missions}
-              balance={balance}
-              onSaveMissions={setMissions}
+              trades={trades}
+              baseWallet={settings.baseWallet}
+              onOpenMissions={() => setShowMissions(true)}
             />
             <PlanBoard
               setups={setups}
@@ -231,6 +246,9 @@ export default function Home() {
       )}
       {showSettings && (
         <SettingsModal settings={settings} onSave={setSettings} onClose={() => setShowSettings(false)} />
+      )}
+      {showMissions && (
+        <MissionSettings missions={missions} onSave={setMissions} onClose={() => setShowMissions(false)} />
       )}
     </main>
   );
