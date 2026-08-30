@@ -8,6 +8,8 @@ import GoldTicker from "@/components/GoldTicker";
 import MissionBoard from "@/components/MissionBoard";
 import MissionSettings from "@/components/MissionSettings";
 import PlanBoard from "@/components/PlanBoard";
+import PlanLadder from "@/components/PlanLadder";
+import PlanModal from "@/components/PlanModal";
 import SettingsModal from "@/components/SettingsModal";
 import SignOutButton from "@/components/SignOutButton";
 import StatsBar from "@/components/StatsBar";
@@ -19,6 +21,7 @@ import Wordmark from "@/components/Wordmark";
 import { DUR, EASE, gsap, rise, useGsap, useIsoLayoutEffect } from "@/lib/anim";
 import { computeStats, floatingGoldPnl, isSetupStale } from "@/lib/calc";
 import { dailyTargetPct } from "@/lib/missions";
+import { buildProgress } from "@/lib/plan";
 import { Setup, Trade } from "@/lib/types";
 import { useGoldPrice } from "@/lib/useGoldPrice";
 import { useJournal } from "@/lib/useJournal";
@@ -33,6 +36,8 @@ export default function Home() {
     ready, trades, settings, setSettings, addTrade, updateTrade, deleteTrade,
     setups, addSetup, updateSetup, deleteSetup, takeSetup,
     missions, setMissions,
+    plan, setPlan,
+    sync, syncError,
   } = useJournal();
 
   const now = new Date();
@@ -44,6 +49,7 @@ export default function Home() {
   const [editing, setEditing] = useState<Trade | undefined>(undefined);
   const [showSettings, setShowSettings] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const [showPlan, setShowPlan] = useState(false);
 
   const gold = useGoldPrice();
 
@@ -71,6 +77,10 @@ export default function Home() {
     () => setups.filter(s => s.status === "WATCHING" && !isSetupStale(s)).length,
     [setups],
   );
+
+  // The tab badge is the rung you are standing on, so the day is visible
+  // without opening the section.
+  const ladderDay = useMemo(() => buildProgress(plan, trades).currentDay, [plan, trades]);
 
   // Masthead entrance — runs once, independent of which section is showing.
   const scope = useGsap<HTMLElement>((_self, el) => {
@@ -129,6 +139,12 @@ export default function Home() {
           <p data-anim="head" className="mt-1.5 text-sm text-ash">
             Trade journal · calendar · equity tracking
           </p>
+          {/* Writes go to the database now, so a failed save has to be visible. */}
+          {syncError && (
+            <p className="mt-1.5 text-xs text-down" role="status">
+              {sync === "offline" ? "Offline — showing the last synced journal." : syncError}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <div data-anim="tools">
@@ -151,6 +167,7 @@ export default function Home() {
             { key: "record", label: "Record" },
             { key: "analytics", label: "Analytics" },
             { key: "plan", label: "Plan", badge: liveSetups },
+            { key: "ladder", label: "Ladder", badge: ladderDay },
           ]}
         />
         {tab === "record" && (
@@ -233,6 +250,15 @@ export default function Home() {
             />
           </div>
         )}
+        {tab === "ladder" && (
+          <PlanLadder
+            plan={plan}
+            trades={trades}
+            currency={settings.currency}
+            today={todayIso()}
+            onEdit={() => setShowPlan(true)}
+          />
+        )}
       </div>
 
       {showTradeModal && (
@@ -249,6 +275,14 @@ export default function Home() {
       )}
       {showMissions && (
         <MissionSettings missions={missions} onSave={setMissions} onClose={() => setShowMissions(false)} />
+      )}
+      {showPlan && (
+        <PlanModal
+          plan={plan}
+          currency={settings.currency}
+          onSave={setPlan}
+          onClose={() => setShowPlan(false)}
+        />
       )}
     </main>
   );

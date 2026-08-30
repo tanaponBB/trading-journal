@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { DUR, EASE, gsap, reduced, useIsoLayoutEffect } from "@/lib/anim";
 
-export type TabKey = "record" | "analytics" | "plan";
+export type TabKey = "record" | "analytics" | "plan" | "ladder";
 
 export interface TabItem {
   key: TabKey;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { computeStats } from "@/lib/calc";
 import { authorize, jsonError } from "@/lib/server/api-auth";
-import { upsertTrades } from "@/lib/server/store";
+import { recordImportRun, upsertTrades } from "@/lib/server/store";
 import { NormalizeOptions, XmOrder, XmPayload, normalizeXmPayload } from "@/lib/xm";
 
 export const runtime = "nodejs";
@@ -50,7 +50,19 @@ export async function POST(req: NextRequest) {
   const dryRun = q.get("dryRun") === "1" || q.get("dryRun") === "true";
   const { trades, warnings, skipped } = normalizeXmPayload(body, options);
 
-  const written = dryRun ? null : await upsertTrades(trades);
+  const written = dryRun ? null : await upsertTrades(authed.actor.userId, trades, { preserveNotes: true });
+
+  // Audit trail — best-effort, never fails the import.
+  await recordImportRun(authed.actor.userId, {
+    source: "xm",
+    dryRun,
+    received: orders.length,
+    normalized: trades.length,
+    skipped,
+    created: written?.created ?? 0,
+    updated: written?.updated ?? 0,
+    warnings,
+  });
 
   return NextResponse.json({
     ok: true,
