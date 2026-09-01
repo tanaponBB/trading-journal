@@ -1,7 +1,7 @@
 # PineLedger — Trading Journal
 
 Calendar-style trading journal with automatic P/L calculation and equity tracking.
-Next.js 15 (App Router) · TypeScript · Tailwind CSS · Recharts. Data is stored in `localStorage` (no backend needed).
+Next.js 15 (App Router) · TypeScript · Tailwind CSS · Recharts. Data lives in a local JSON store on the server (no external database needed).
 
 ## Run
 
@@ -28,8 +28,11 @@ npm run dev
 ## Notes
 
 - P/L is in the quote/account currency; contract size is editable if your broker differs.
-- To move to a real database later, replace `lib/useJournal.ts` with API calls — the rest of the app only consumes the hook.
-- Imported trades are held server-side in `.data/trades.json` (override with `TJ_DATA_DIR`) and
-  merged into the browser automatically on load. Machine callers authenticate
-  with `IMPORT_API_KEY`.
+- Trades, setups and preferences are written to `.data/users/<id>.json` (override the directory
+  with `TJ_DATA_DIR`), one file per account. `localStorage` is only a cache so the calendar
+  paints instantly and stays readable offline — the server wins once it answers.
+- The store is a single module, `lib/server/store.ts`. The route handlers use nothing else, so
+  moving to Postgres later means rewriting that one file. `supabase/migrations/0001_init.sql`
+  and [docs/DATABASE.md](docs/DATABASE.md) keep that schema on file for when it does.
+- Machine callers (the scraper / n8n / cron) authenticate with `IMPORT_API_KEY`.
 # trading-journal

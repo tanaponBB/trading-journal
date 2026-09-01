@@ -1,11 +1,23 @@
 # Database — Supabase (Postgres)
 
-Supabase is the source of truth for trades, planned setups, and configuration
+> **Not currently wired up.** Storage is a local JSON store — `lib/server/store.ts`
+> writing `.data/users/<id>.json`, one file per account. This document and
+> `supabase/migrations/0001_init.sql` are kept as the schema of record for when the
+> journal moves back to Postgres; nothing in the running app reads them today.
+>
+> To switch back: reinstall `@supabase/supabase-js`, restore the client and the
+> Supabase `store.ts` from commit `2dc3e4c`, and set `SUPABASE_URL` /
+> `SUPABASE_SERVICE_ROLE_KEY`. The exported store functions are unchanged, so no
+> route handler or component has to move.
+
+Supabase was the source of truth for trades, planned setups, and configuration
 (wallet settings, daily missions, and the plan ladder).
 
-Before this, everything lived in the browser's `localStorage` and broker imports
+Before that, everything lived in the browser's `localStorage` and broker imports
 landed in a flat `.data/trades.json`; the two never reconciled, and a cleared
-browser meant a lost journal.
+browser meant a lost journal. The local store keeps that reconciliation — one
+server-side source, `localStorage` demoted to a cache — without the hosted
+database.
 
 ## How access works
 

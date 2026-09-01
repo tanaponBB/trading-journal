@@ -2,17 +2,16 @@ import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { resolveUserId } from "./store";
-import { isSupabaseConfigured } from "./supabase";
 
 /**
  * API routes accept two callers:
  *  - machines (the scraper / n8n / cron) via `x-api-key` or `Authorization: Bearer`
  *  - the dashboard itself, via the NextAuth session cookie
  *
- * Both resolve to a row in `app_users`: the session caller by its own email,
- * the machine caller by ALLOWED_EMAIL — the single account the journal belongs
- * to. Everything downstream is scoped by the `userId` returned here, so a route
- * can never read or write another user's data.
+ * Both resolve to a user id: the session caller from its own email, the machine
+ * caller from ALLOWED_EMAIL — the single account the journal belongs to.
+ * Everything downstream is scoped by the `userId` returned here, so a route can
+ * never read or write another user's data.
  */
 
 /** Mirrors the gate in auth.ts. */
@@ -46,7 +45,7 @@ function presentedKey(req: Request): string | null {
 
 type Identified = { ok: true; via: "api-key" | "session"; email: string } | { ok: false; response: NextResponse };
 
-/** Who is calling — checked before the database, so a 401 never leaks config state. */
+/** Who is calling — checked before the store, so a 401 never leaks config state. */
 async function identify(req: Request): Promise<Identified> {
   const configured = process.env.IMPORT_API_KEY?.trim();
   const presented = presentedKey(req);
@@ -77,22 +76,11 @@ export async function authorize(req: Request): Promise<AuthResult> {
   const identified = await identify(req);
   if (!identified.ok) return identified;
 
-  if (!isSupabaseConfigured()) {
-    return {
-      ok: false,
-      response: jsonError(
-        503,
-        "database_not_configured",
-        "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the server.",
-      ),
-    };
-  }
-
   try {
     const userId = await resolveUserId(identified.email);
     return { ok: true, actor: { via: identified.via, email: identified.email, userId } };
   } catch (err) {
     console.error("resolveUserId failed:", err);
-    return { ok: false, response: jsonError(503, "database_unavailable", "Could not reach the database.") };
+    return { ok: false, response: jsonError(503, "store_unavailable", "Could not open the local journal store.") };
   }
 }

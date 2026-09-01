@@ -1,131 +1,124 @@
+import { createHash } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
 import { MissionConfig } from "@/lib/missions";
 import { PlanConfig, normalizePlan } from "@/lib/plan";
-import { Settings, Setup, SetupStatus, Trade, TradeSource, TradeStatus } from "@/lib/types";
-import { PAGE_SIZE, chunk, supabase } from "./supabase";
+import { Settings, Setup, Trade, TradeSource } from "@/lib/types";
 
 /**
- * Supabase-backed store. The route handlers only use the functions exported
- * here, so the storage engine stays swappable — this module replaced a
- * flat-file implementation with no change to the API surface beyond the
- * `userId` every call now carries.
+ * Local-file store. The route handlers only use the functions exported here,
+ * so the storage engine stays swappable — this module replaced the Supabase
+ * implementation with no change to the API surface: every call still carries
+ * the `userId` it acts as, and nothing in here can read across users.
  *
- * Rows are always scoped by `user_id`; nothing in here can read across users.
+ * One JSON file per user under `.data/users/<userId>.json` (gitignored, or
+ * `TJ_DATA_DIR` to put it elsewhere). Fine for a single-account journal on one
+ * machine; the Supabase migration in supabase/migrations/0001_init.sql is
+ * still the schema of record if this moves back to a database.
  */
 
-const TRADES = "trades";
-const SETUPS = "setups";
-const PREFERENCES = "preferences";
-const USERS = "app_users";
-const IMPORT_RUNS = "import_runs";
+const DATA_DIR = process.env.TJ_DATA_DIR || path.join(process.cwd(), ".data");
+const USERS_DIR = path.join(DATA_DIR, "users");
 
 export const DEFAULT_SETTINGS: Settings = { baseWallet: 1000, currency: "USD" };
 
-const TRADE_COLUMNS =
-  "id, date, symbol, contract_size, direction, lots, entry_price, sl, tp, exit_price, fees, status, notes, source, external_id";
-const SETUP_COLUMNS =
-  "id, created_at, valid_days, symbol, contract_size, direction, lots, entry_price, sl, tp, reason, status, trade_id";
+/** Import audit rows kept per user — enough to debug the last few runs. */
+const MAX_IMPORT_RUNS = 50;
 
-/** Postgres `numeric` can arrive as a string; normalise before it reaches calc.ts. */
-const n = (v: number | string | null | undefined): number | undefined =>
-  v == null ? undefined : typeof v === "number" ? v : Number(v);
+// ------------------------------------------------------------------ file --
 
-function fail(context: string, error: { message: string } | null): never {
-  throw new Error(`Supabase ${context} failed: ${error?.message ?? "unknown error"}`);
+export interface Preferences {
+  settings: Settings;
+  missions: MissionConfig[];
+  plan: PlanConfig;
+}
+
+interface UserFile {
+  version: 1;
+  updatedAt: string;
+  trades: Trade[];
+  setups: Setup[];
+  /** null until the user saves anything — distinct from "saved the defaults". */
+  preferences: Preferences | null;
+  importRuns: (ImportRun & { at: string })[];
+}
+
+const EMPTY: UserFile = {
+  version: 1,
+  updatedAt: new Date(0).toISOString(),
+  trades: [],
+  setups: [],
+  preferences: null,
+  importRuns: [],
+};
+
+function fileFor(userId: string): string {
+  // userId comes from resolveUserId — hex only — but pin it anyway so a bad
+  // caller can never walk out of the data directory.
+  if (!/^[0-9a-f-]{8,64}$/.test(userId)) throw new Error("Invalid userId.");
+  return path.join(USERS_DIR, `${userId}.json`);
+}
+
+async function read(userId: string): Promise<UserFile> {
+  try {
+    const raw = await fs.readFile(fileFor(userId), "utf8");
+    const parsed = JSON.parse(raw) as Partial<UserFile>;
+    return {
+      ...EMPTY,
+      ...parsed,
+      trades: Array.isArray(parsed.trades) ? parsed.trades : [],
+      setups: Array.isArray(parsed.setups) ? parsed.setups : [],
+      importRuns: Array.isArray(parsed.importRuns) ? parsed.importRuns : [],
+    };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { ...EMPTY };
+    throw err;
+  }
+}
+
+async function write(userId: string, file: UserFile): Promise<void> {
+  await fs.mkdir(USERS_DIR, { recursive: true });
+  const target = fileFor(userId);
+  const tmp = `${target}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify({ ...file, updatedAt: new Date().toISOString() }, null, 2), "utf8");
+  await fs.rename(tmp, target); // atomic swap — never leaves a half-written file
+}
+
+/**
+ * Serialise writes per user so two concurrent imports can't clobber each
+ * other: a read-modify-write here is only safe if nothing interleaves.
+ */
+const queues = new Map<string, Promise<unknown>>();
+
+function withLock<T>(userId: string, fn: (file: UserFile) => Promise<T>): Promise<T> {
+  const prior = queues.get(userId) ?? Promise.resolve();
+  const run = prior.then(
+    () => read(userId).then(fn),
+    () => read(userId).then(fn),
+  );
+  queues.set(
+    userId,
+    run.catch(() => undefined),
+  );
+  return run;
 }
 
 // ------------------------------------------------------------------ users --
 
 /**
- * Look up the user row for an email, creating it on first sign-in.
- * NextAuth uses stateless JWT sessions, so this is what turns an authenticated
- * email into the `user_id` every other table is keyed by.
+ * The id every table is keyed by, derived from the email.
+ *
+ * The database version inserted a row and handed back its uuid; here the id is
+ * a hash of the email instead, so it is stable across restarts without a
+ * registry file to keep in sync (and without a race on first sign-in).
  */
 export async function resolveUserId(email: string): Promise<string> {
   const normalized = email.trim().toLowerCase();
   if (!normalized) throw new Error("resolveUserId requires a non-empty email.");
-
-  const db = supabase();
-
-  const existing = await db.from(USERS).select("id").eq("email", normalized).maybeSingle();
-  if (existing.error) fail("user lookup", existing.error);
-  if (existing.data) return (existing.data as { id: string }).id;
-
-  // `upsert` rather than `insert` so two concurrent first requests can't race
-  // each other into a unique-violation.
-  const created = await db
-    .from(USERS)
-    .upsert({ email: normalized }, { onConflict: "email" })
-    .select("id")
-    .single();
-  if (created.error) fail("user create", created.error);
-  return (created.data as { id: string }).id;
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 32);
 }
 
 // ----------------------------------------------------------------- trades --
-
-interface TradeRow {
-  id: string;
-  date: string;
-  symbol: string;
-  contract_size: number | string;
-  direction: Trade["direction"];
-  lots: number | string;
-  entry_price: number | string;
-  sl: number | string | null;
-  tp: number | string | null;
-  exit_price: number | string | null;
-  fees: number | string | null;
-  status: TradeStatus;
-  notes: string | null;
-  source: TradeSource;
-  external_id: string | null;
-}
-
-function toTrade(row: TradeRow): Trade {
-  const sl = n(row.sl);
-  const tp = n(row.tp);
-  const exit = n(row.exit_price);
-  const fees = n(row.fees);
-
-  return {
-    id: row.id,
-    date: row.date,
-    symbol: row.symbol,
-    contractSize: n(row.contract_size) ?? 0,
-    direction: row.direction,
-    lots: n(row.lots) ?? 0,
-    entry: n(row.entry_price) ?? 0,
-    ...(sl != null ? { sl } : {}),
-    ...(tp != null ? { tp } : {}),
-    ...(exit != null ? { exit } : {}),
-    ...(fees != null ? { fees } : {}),
-    status: row.status,
-    ...(row.notes ? { notes: row.notes } : {}),
-    source: row.source,
-    ...(row.external_id ? { externalId: row.external_id } : {}),
-  };
-}
-
-function toTradeRow(userId: string, t: Trade): TradeRow & { user_id: string } {
-  return {
-    user_id: userId,
-    id: t.id,
-    date: t.date,
-    symbol: t.symbol.toUpperCase(),
-    contract_size: t.contractSize,
-    direction: t.direction,
-    lots: t.lots,
-    entry_price: t.entry,
-    sl: t.sl ?? null,
-    tp: t.tp ?? null,
-    exit_price: t.exit ?? null,
-    fees: t.fees ?? null,
-    status: t.status,
-    notes: t.notes ?? null,
-    source: t.source ?? "manual",
-    external_id: t.externalId ?? null,
-  };
-}
 
 export interface TradeFilter {
   from?: string; // YYYY-MM-DD inclusive
@@ -135,64 +128,50 @@ export interface TradeFilter {
   status?: string;
 }
 
-/** Apply the shared filter set to a select/delete builder. */
-function applyFilter<T>(query: T, filter: TradeFilter): T {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = query as any;
-  if (filter.from) q = q.gte("date", filter.from);
-  if (filter.to) q = q.lte("date", filter.to);
-  if (filter.symbol) q = q.ilike("symbol", filter.symbol); // no wildcards → case-insensitive equality
-  if (filter.source) q = q.eq("source", filter.source);
-  if (filter.status) q = q.eq("status", filter.status);
-  return q as T;
+function matches(t: Trade, f: TradeFilter): boolean {
+  if (f.from && t.date < f.from) return false;
+  if (f.to && t.date > f.to) return false;
+  if (f.symbol && t.symbol.toUpperCase() !== f.symbol.toUpperCase()) return false;
+  if (f.source && (t.source ?? "manual") !== f.source) return false;
+  if (f.status && t.status !== f.status) return false;
+  return true;
 }
+
+/** Canonical form, so `symbol` case and absent-vs-undefined don't fake a change. */
+function normalizeTrade(t: Trade): Trade {
+  return {
+    id: t.id,
+    date: t.date,
+    symbol: t.symbol.toUpperCase(),
+    contractSize: t.contractSize,
+    direction: t.direction,
+    lots: t.lots,
+    entry: t.entry,
+    ...(t.sl != null ? { sl: t.sl } : {}),
+    ...(t.tp != null ? { tp: t.tp } : {}),
+    ...(t.exit != null ? { exit: t.exit } : {}),
+    ...(t.fees != null ? { fees: t.fees } : {}),
+    status: t.status,
+    ...(t.notes ? { notes: t.notes } : {}),
+    source: t.source ?? "manual",
+    ...(t.externalId ? { externalId: t.externalId } : {}),
+  };
+}
+
+const sameTrade = (a: Trade, b: Trade) => JSON.stringify(normalizeTrade(a)) === JSON.stringify(normalizeTrade(b));
+
+const byDateThenId = (a: Trade, b: Trade) =>
+  a.date === b.date ? a.id.localeCompare(b.id) : a.date.localeCompare(b.date);
 
 export async function listTrades(
   userId: string,
   filter: TradeFilter = {},
 ): Promise<{ trades: Trade[]; updatedAt: string }> {
-  const db = supabase();
-  const rows: (TradeRow & { updated_at: string })[] = [];
-
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await applyFilter(
-      db.from(TRADES).select(`${TRADE_COLUMNS}, updated_at`).eq("user_id", userId),
-      filter,
-    )
-      .order("date", { ascending: true })
-      .order("id", { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1);
-
-    if (error) fail("trade list", error);
-    const page = (data ?? []) as (TradeRow & { updated_at: string })[];
-    rows.push(...page);
-    // A short page means we've reached the end; a full one might not have.
-    if (page.length < PAGE_SIZE) break;
-  }
-
-  // The old flat file carried a single store-wide `updatedAt`; the equivalent
-  // now is the freshest row in the result set.
-  const updatedAt = rows.reduce(
-    (latest, r) => (r.updated_at > latest ? r.updated_at : latest),
-    new Date(0).toISOString(),
-  );
-
-  return { trades: rows.map(toTrade), updatedAt };
-}
-
-/** Rows the user owns, after `filter`. HEAD count — no rows cross the wire. */
-async function countTrades(userId: string, filter: TradeFilter = {}): Promise<number> {
-  const { count, error } = await applyFilter(
-    supabase().from(TRADES).select("id", { count: "exact", head: true }).eq("user_id", userId),
-    filter,
-  );
-  if (error) fail("trade count", error);
-  return count ?? 0;
-}
-
-/** True when two trades are identical in every persisted field. */
-function sameTrade(a: Trade, b: Trade): boolean {
-  return JSON.stringify(toTradeRow("", a)) === JSON.stringify(toTradeRow("", b));
+  const file = await read(userId);
+  return {
+    trades: file.trades.filter(t => matches(t, filter)).sort(byDateThenId),
+    updatedAt: file.updatedAt,
+  };
 }
 
 export interface UpsertOptions {
@@ -208,57 +187,39 @@ export interface UpsertOptions {
 }
 
 /**
- * Insert-or-replace by (user_id, id). Idempotent: re-posting the same payload
- * reports everything as unchanged and writes nothing new.
+ * Insert-or-replace by `id`. Idempotent: re-posting the same payload reports
+ * everything as unchanged and writes nothing new.
  */
 export async function upsertTrades(
   userId: string,
   incoming: Trade[],
   options: UpsertOptions = {},
 ): Promise<{ created: number; updated: number; total: number }> {
-  const db = supabase();
-
   if (incoming.length === 0) {
-    return { created: 0, updated: 0, total: await countTrades(userId) };
+    const file = await read(userId);
+    return { created: 0, updated: 0, total: file.trades.length };
   }
 
-  // Read the rows we're about to touch so created/updated/unchanged stay as
-  // accurate as they were under the flat-file store.
-  const existing = new Map<string, Trade>();
-  for (const ids of chunk(incoming.map(t => t.id))) {
-    const { data, error } = await db
-      .from(TRADES)
-      .select(TRADE_COLUMNS)
-      .eq("user_id", userId)
-      .in("id", ids);
-    if (error) fail("trade preload", error);
-    for (const row of (data ?? []) as TradeRow[]) {
-      const trade = toTrade(row);
-      existing.set(trade.id, trade);
+  return withLock(userId, async file => {
+    const byId = new Map(file.trades.map(t => [t.id, t]));
+
+    let created = 0;
+    let updated = 0;
+    for (const raw of incoming) {
+      const prev = byId.get(raw.id);
+      const next = normalizeTrade(
+        options.preserveNotes && prev?.notes ? { ...raw, notes: prev.notes } : raw,
+      );
+
+      if (!prev) created++;
+      else if (!sameTrade(prev, next)) updated++;
+      byId.set(next.id, next);
     }
-  }
 
-  const resolved = options.preserveNotes
-    ? incoming.map(t => {
-        const prev = existing.get(t.id);
-        return prev?.notes ? { ...t, notes: prev.notes } : t;
-      })
-    : incoming;
-
-  let created = 0;
-  let updated = 0;
-  for (const t of resolved) {
-    const prev = existing.get(t.id);
-    if (!prev) created++;
-    else if (!sameTrade(prev, t)) updated++;
-  }
-
-  for (const batch of chunk(resolved.map(t => toTradeRow(userId, t)))) {
-    const { error } = await db.from(TRADES).upsert(batch, { onConflict: "user_id,id" });
-    if (error) fail("trade upsert", error);
-  }
-
-  return { created, updated, total: await countTrades(userId) };
+    const trades = [...byId.values()].sort(byDateThenId);
+    if (created > 0 || updated > 0) await write(userId, { ...file, trades });
+    return { created, updated, total: trades.length };
+  });
 }
 
 /** Delete by id, or by filter. An empty filter deletes everything for the user. */
@@ -266,178 +227,98 @@ export async function deleteTrades(
   userId: string,
   filter: TradeFilter & { id?: string } = {},
 ): Promise<{ deleted: number; total: number }> {
-  const db = supabase();
+  return withLock(userId, async file => {
+    const keep = file.trades.filter(t => (filter.id ? t.id !== filter.id : !matches(t, filter)));
+    const deleted = file.trades.length - keep.length;
 
-  // Count first rather than counting the returned representation: PostgREST
-  // caps how many rows a delete echoes back, which would under-report a large
-  // wipe even though every row was in fact deleted.
-  const before = await countTrades(userId);
-
-  // `user_id` is always pinned, so this can never widen into an unscoped delete.
-  let query = db.from(TRADES).delete().eq("user_id", userId);
-  if (filter.id) query = query.eq("id", filter.id);
-  else query = applyFilter(query, filter);
-
-  const { error } = await query;
-  if (error) fail("trade delete", error);
-
-  const total = await countTrades(userId);
-  return { deleted: before - total, total };
+    if (deleted > 0) await write(userId, { ...file, trades: keep });
+    return { deleted, total: keep.length };
+  });
 }
 
 // ----------------------------------------------------------------- setups --
 
-interface SetupRow {
-  id: string;
-  created_at: string;
-  valid_days: number;
-  symbol: string;
-  contract_size: number | string;
-  direction: Setup["direction"];
-  lots: number | string;
-  entry_price: number | string;
-  sl: number | string | null;
-  tp: number | string | null;
-  reason: string | null;
-  status: SetupStatus;
-  trade_id: string | null;
-}
-
-function toSetup(row: SetupRow): Setup {
-  const sl = n(row.sl);
-  const tp = n(row.tp);
+function normalizeSetup(s: Setup): Setup {
   return {
-    id: row.id,
-    createdAt: row.created_at,
-    validDays: row.valid_days,
-    symbol: row.symbol,
-    contractSize: n(row.contract_size) ?? 0,
-    direction: row.direction,
-    lots: n(row.lots) ?? 0,
-    entry: n(row.entry_price) ?? 0,
-    ...(sl != null ? { sl } : {}),
-    ...(tp != null ? { tp } : {}),
-    ...(row.reason ? { reason: row.reason } : {}),
-    status: row.status,
-    ...(row.trade_id ? { tradeId: row.trade_id } : {}),
+    id: s.id,
+    createdAt: s.createdAt,
+    validDays: s.validDays,
+    symbol: s.symbol.toUpperCase(),
+    contractSize: s.contractSize,
+    direction: s.direction,
+    lots: s.lots,
+    entry: s.entry,
+    ...(s.sl != null ? { sl: s.sl } : {}),
+    ...(s.tp != null ? { tp: s.tp } : {}),
+    ...(s.reason ? { reason: s.reason } : {}),
+    status: s.status,
+    ...(s.tradeId ? { tradeId: s.tradeId } : {}),
   };
 }
 
 export async function listSetups(userId: string): Promise<Setup[]> {
-  const { data, error } = await supabase()
-    .from(SETUPS)
-    .select(SETUP_COLUMNS)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .range(0, PAGE_SIZE - 1);
-  if (error) fail("setup list", error);
-  return ((data ?? []) as SetupRow[]).map(toSetup);
+  const file = await read(userId);
+  return [...file.setups].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function upsertSetups(userId: string, setups: Setup[]): Promise<number> {
   if (setups.length === 0) return 0;
 
-  const rows = setups.map(s => ({
-    user_id: userId,
-    id: s.id,
-    created_at: s.createdAt,
-    valid_days: s.validDays,
-    symbol: s.symbol.toUpperCase(),
-    contract_size: s.contractSize,
-    direction: s.direction,
-    lots: s.lots,
-    entry_price: s.entry,
-    sl: s.sl ?? null,
-    tp: s.tp ?? null,
-    reason: s.reason ?? null,
-    status: s.status,
-    trade_id: s.tradeId ?? null,
-  }));
+  return withLock(userId, async file => {
+    const byId = new Map(file.setups.map(s => [s.id, s]));
+    for (const s of setups) byId.set(s.id, normalizeSetup(s));
 
-  for (const batch of chunk(rows)) {
-    const { error } = await supabase().from(SETUPS).upsert(batch, { onConflict: "user_id,id" });
-    if (error) fail("setup upsert", error);
-  }
-  return setups.length;
+    await write(userId, { ...file, setups: [...byId.values()] });
+    return setups.length;
+  });
 }
 
 export async function deleteSetup(userId: string, id: string): Promise<boolean> {
-  const { data, error } = await supabase()
-    .from(SETUPS)
-    .delete()
-    .eq("user_id", userId)
-    .eq("id", id)
-    .select("id");
-  if (error) fail("setup delete", error);
-  return (data ?? []).length > 0;
+  return withLock(userId, async file => {
+    const keep = file.setups.filter(s => s.id !== id);
+    if (keep.length === file.setups.length) return false;
+
+    await write(userId, { ...file, setups: keep });
+    return true;
+  });
 }
 
 // ------------------------------------------------------------ preferences --
 
-export interface Preferences {
-  settings: Settings;
-  missions: MissionConfig[];
-  plan: PlanConfig;
-}
-
-interface PreferencesRow {
-  base_wallet: number | string;
-  currency: string;
-  missions: MissionConfig[] | null;
-  plan: Partial<PlanConfig> | null;
-}
-
 export async function getPreferences(userId: string, fallbackMissions: MissionConfig[]): Promise<Preferences> {
-  const { data, error } = await supabase()
-    .from(PREFERENCES)
-    .select("base_wallet, currency, missions, plan")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) fail("preferences read", error);
+  const file = await read(userId);
+  const saved = file.preferences;
 
-  if (!data) {
+  if (!saved) {
     return { settings: { ...DEFAULT_SETTINGS }, missions: fallbackMissions, plan: normalizePlan(null) };
   }
 
-  const row = data as PreferencesRow;
   return {
     settings: {
-      baseWallet: n(row.base_wallet) ?? DEFAULT_SETTINGS.baseWallet,
-      currency: row.currency,
+      baseWallet: saved.settings?.baseWallet ?? DEFAULT_SETTINGS.baseWallet,
+      currency: saved.settings?.currency ?? DEFAULT_SETTINGS.currency,
     },
-    // An empty array means "never saved", not "every mission disabled" — the
-    // column defaults to '[]' when the row is created by a settings-only write.
-    missions: row.missions && row.missions.length > 0 ? row.missions : fallbackMissions,
-    plan: normalizePlan(row.plan),
+    // An empty array means "never saved", not "every mission disabled" — a
+    // settings-only write leaves the list untouched.
+    missions: saved.missions && saved.missions.length > 0 ? saved.missions : fallbackMissions,
+    plan: normalizePlan(saved.plan),
   };
 }
 
 export async function savePreferences(userId: string, prefs: Preferences): Promise<Preferences> {
-  const { data, error } = await supabase()
-    .from(PREFERENCES)
-    .upsert(
-      {
-        user_id: userId,
-        base_wallet: prefs.settings.baseWallet,
+  return withLock(userId, async file => {
+    const preferences: Preferences = {
+      settings: {
+        baseWallet: prefs.settings.baseWallet,
         currency: prefs.settings.currency.toUpperCase(),
-        missions: prefs.missions,
-        plan: normalizePlan(prefs.plan),
       },
-      { onConflict: "user_id" },
-    )
-    .select("base_wallet, currency, missions, plan")
-    .single();
-  if (error) fail("preferences write", error);
+      missions: prefs.missions,
+      plan: normalizePlan(prefs.plan),
+    };
 
-  const row = data as PreferencesRow;
-  return {
-    settings: {
-      baseWallet: n(row.base_wallet) ?? prefs.settings.baseWallet,
-      currency: row.currency,
-    },
-    missions: row.missions ?? prefs.missions,
-    plan: normalizePlan(row.plan),
-  };
+    await write(userId, { ...file, preferences });
+    return preferences;
+  });
 }
 
 // ------------------------------------------------------------ import runs --
@@ -458,16 +339,16 @@ export interface ImportRun {
  * whose trades already landed, so the error is swallowed and logged.
  */
 export async function recordImportRun(userId: string, run: ImportRun): Promise<void> {
-  const { error } = await supabase().from(IMPORT_RUNS).insert({
-    user_id: userId,
-    source: run.source ?? "xm",
-    dry_run: run.dryRun,
-    received: run.received,
-    normalized: run.normalized,
-    skipped: run.skipped,
-    created: run.created,
-    updated: run.updated,
-    warnings: run.warnings,
-  });
-  if (error) console.error(`import_runs insert failed: ${error.message}`);
+  try {
+    await withLock(userId, async file => {
+      const entry = { ...run, source: run.source ?? "xm", at: new Date().toISOString() } as ImportRun & { at: string };
+      const importRuns = [entry, ...file.importRuns].slice(0, MAX_IMPORT_RUNS);
+      await write(userId, { ...file, importRuns });
+    });
+  } catch (err) {
+    console.error("import run record failed:", err);
+  }
 }
+
+/** Where a user's journal lives on disk — handy in errors and tooling. */
+export const storePathFor = (userId: string) => fileFor(userId);

@@ -6,7 +6,7 @@ import { DEFAULT_PLAN, PlanConfig, normalizePlan } from "./plan";
 import { Settings, Setup, Trade } from "./types";
 
 /**
- * Journal state, backed by Supabase through the /api routes.
+ * Journal state, backed by the local JSON store through the /api routes.
  *
  * localStorage is still written on every change, but it is now a *cache*, not
  * the source of truth: it paints the last-known journal instantly on load and
@@ -22,7 +22,7 @@ const SETUPS_KEY = "tj.setups.v1";
 const MISSIONS_KEY = "tj.missions.v1";
 const SETTINGS_KEY = "tj.settings.v1";
 const PLAN_KEY = "tj.plan.v1";
-/** Set once the browser's pre-database journal has been pushed to the server. */
+/** Set once the browser's pre-server journal has been pushed to the server. */
 const MIGRATED_KEY = "tj.migrated.v1";
 
 const DEFAULT_SETTINGS: Settings = { baseWallet: 1000, currency: "USD" };
