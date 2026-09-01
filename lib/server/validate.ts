@@ -4,11 +4,11 @@ import { Direction, Settings, Setup, SetupStatus, Trade, TradeSource, TradeStatu
 import { Preferences } from "./store";
 
 /**
- * Input validation for the write endpoints. The dashboard writes to the
- * database now, so payloads can no longer be trusted just because they came
- * from our own UI — these checks mirror the CHECK constraints in
- * supabase/migrations/0001_init.sql so a bad row is rejected with a readable
- * message instead of a Postgres error.
+ * Input validation for the write endpoints. Payloads reach the store from the
+ * dashboard *and* from machine callers, so none can be trusted just because it
+ * came from our own UI — these checks are what stands between a request and the
+ * file on disk, rejecting a bad row with a readable message instead of letting
+ * it land malformed.
  */
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

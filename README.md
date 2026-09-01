@@ -32,7 +32,6 @@ npm run dev
   with `TJ_DATA_DIR`), one file per account. `localStorage` is only a cache so the calendar
   paints instantly and stays readable offline — the server wins once it answers.
 - The store is a single module, `lib/server/store.ts`. The route handlers use nothing else, so
-  moving to Postgres later means rewriting that one file. `supabase/migrations/0001_init.sql`
-  and [docs/DATABASE.md](docs/DATABASE.md) keep that schema on file for when it does.
+  moving to a database later means rewriting that one file and nothing above it.
 - Machine callers (the scraper / n8n / cron) authenticate with `IMPORT_API_KEY`.
 # trading-journal

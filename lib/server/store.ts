@@ -6,15 +6,16 @@ import { PlanConfig, normalizePlan } from "@/lib/plan";
 import { Settings, Setup, Trade, TradeSource } from "@/lib/types";
 
 /**
- * Local-file store. The route handlers only use the functions exported here,
- * so the storage engine stays swappable — this module replaced the Supabase
- * implementation with no change to the API surface: every call still carries
- * the `userId` it acts as, and nothing in here can read across users.
+ * Local-file store — the source of truth for trades, planned setups and
+ * configuration.
  *
- * One JSON file per user under `.data/users/<userId>.json` (gitignored, or
- * `TJ_DATA_DIR` to put it elsewhere). Fine for a single-account journal on one
- * machine; the Supabase migration in supabase/migrations/0001_init.sql is
- * still the schema of record if this moves back to a database.
+ * One JSON file per user under `.data/users/<userId>.json` (gitignored, or set
+ * `TJ_DATA_DIR` to put it elsewhere). Every call carries the `userId` it acts
+ * as, and nothing in here can read across users.
+ *
+ * The route handlers use nothing but the functions exported below, so the
+ * storage engine stays swappable: moving to a database later means rewriting
+ * this one file and leaving the rest of the app alone.
  */
 
 const DATA_DIR = process.env.TJ_DATA_DIR || path.join(process.cwd(), ".data");
